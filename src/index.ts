@@ -10,7 +10,7 @@ import { authRouter } from './routes/auth';
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3001'] }));
+app.use(cors()); // Allow all origins for network access in development
 app.use(express.json({ limit: '10kb' }));
 
 // Request logging

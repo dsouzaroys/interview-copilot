@@ -604,7 +604,7 @@ export default function App() {
         </button>
         <div className="topbar-brand">
           <div className="brain-icon">🧠</div>
-          <span>AI Interview <span className="copilot">Copilot</span></span>
+          <span className="brand-text">AI Interview <span className="copilot">Copilot</span></span>
         </div>
 
         {activeSession && (
@@ -625,6 +625,18 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Mobile Floating Navigation — Only visible on mobile via CSS */}
+      {activeSession && (
+        <nav className="mobile-floating-nav">
+          <button className={view === 'chat' ? 'active' : ''} onClick={() => setView('chat')}>
+            💬 Interview
+          </button>
+          <button className={view === 'analytics' ? 'active' : ''} onClick={() => setView('analytics')}>
+            📊 Analytics
+          </button>
+        </nav>
+      )}
 
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
