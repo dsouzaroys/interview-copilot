@@ -1,29 +1,34 @@
-import { GoogleGenerativeAI, TaskType } from '@google/generative-ai';
+import { GoogleGenAI, FunctionDeclaration, Type } from '@google/genai';
 import { env } from '../config/env';
 
-const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+const ai = new GoogleGenAI({ apiKey: env.GOOGLE_API_KEY });
 
-export const EMBEDDING_DIMENSIONS = 768;
+export const EMBEDDING_DIMENSIONS = 3072;
 
 // ─── Embed for Indexing (Documents) ──────────────────────────────────────────
 
 export async function embedDocument(text: string): Promise<number[]> {
-  const result = await model.embedContent({
-    content: { parts: [{ text }], role: 'user' },
-    taskType: TaskType.RETRIEVAL_DOCUMENT,
+  const result = await ai.models.embedContent({
+    model: 'gemini-embedding-001',
+    contents: text,
+    config: { taskType: 'RETRIEVAL_DOCUMENT' },
   });
-  return result.embedding.values;
+  const values = result.embeddings?.[0]?.values;
+  if (!values) throw new Error('No embedding values returned');
+  return values;
 }
 
 // ─── Embed for Querying (Search) ─────────────────────────────────────────────
 
 export async function embedQuery(text: string): Promise<number[]> {
-  const result = await model.embedContent({
-    content: { parts: [{ text }], role: 'user' },
-    taskType: TaskType.RETRIEVAL_QUERY,
+  const result = await ai.models.embedContent({
+    model: 'gemini-embedding-001',
+    contents: text,
+    config: { taskType: 'RETRIEVAL_QUERY' },
   });
-  return result.embedding.values;
+  const values = result.embeddings?.[0]?.values;
+  if (!values) throw new Error('No embedding values returned');
+  return values;
 }
 
 // ─── Batch Embed (with rate-limit protection) ─────────────────────────────────
@@ -47,3 +52,6 @@ export async function embedBatch(
 
   return results;
 }
+
+// Re-export types used by tools.ts
+export type { FunctionDeclaration, Type };

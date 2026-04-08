@@ -10,7 +10,7 @@ export interface IQuestion extends Document {
   keyConcepts: string[];
   tags: string[];
   followUpHints: string[];
-  embedding: number[]; // 768-dim from Google text-embedding-004
+  embedding: number[]; // 768-dim from Google text-embedding-001
 }
 
 const QuestionSchema = new Schema<IQuestion>(

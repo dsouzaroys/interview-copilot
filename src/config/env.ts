@@ -4,12 +4,19 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const envSchema = z.object({
-  ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
+  // Google AI — used for both embeddings (text-embedding-001) AND the main agent (Gemini)
   GOOGLE_API_KEY: z.string().min(1, 'GOOGLE_API_KEY is required'),
+
+  // MongoDB Atlas
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
+
+  // Redis
   REDIS_URL: z.string().default('redis://localhost:6379'),
+
+  // Server
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
 });
 
 export type Env = z.infer<typeof envSchema>;

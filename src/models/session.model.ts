@@ -11,11 +11,13 @@ export interface ISession extends Document {
   avgScore: number;
   weakAreasIdentified: string[];
   strongAreasIdentified: string[];
+  userId: string;
 }
 
 const SessionSchema = new Schema<ISession>(
   {
     sessionId: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, required: true, index: true },
     interviewType: {
       type: String,
       enum: ['dsa', 'backend', 'system-design'],

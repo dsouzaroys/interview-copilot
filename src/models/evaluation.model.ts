@@ -15,11 +15,13 @@ export interface IEvaluation extends Document {
   missingConcepts: string[];
   strengths: string[];
   evaluatedAt: Date;
+  userId: string;
 }
 
 const EvaluationSchema = new Schema<IEvaluation>(
   {
     sessionId: { type: String, required: true, index: true },
+    userId: { type: String, required: true, index: true },
     questionId: { type: String, required: true },
     topic: { type: String, required: true },
     interviewType: {

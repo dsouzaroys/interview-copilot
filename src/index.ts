@@ -5,6 +5,7 @@ import { connectMongoDB } from './config/mongodb';
 import { connectRedis } from './config/redis';
 import { sessionRouter } from './routes/session';
 import { interviewRouter } from './routes/interview';
+import { authRouter } from './routes/auth';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use((req, _res, next) => {
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+app.use('/auth', authRouter);
 app.use('/sessions', sessionRouter);
 app.use('/sessions', interviewRouter);
 
@@ -45,15 +47,18 @@ async function bootstrap() {
     console.log(`📊 Environment: ${env.NODE_ENV}`);
     console.log('');
     console.log('Available endpoints:');
-    console.log('  POST   /sessions                    → Create session');
-    console.log('  POST   /sessions/:id/message        → Send message');
-    console.log('  GET    /sessions/:id/summary        → Session analytics');
-    console.log('  POST   /sessions/:id/end            → End session');
-    console.log('  GET    /sessions                    → List all sessions');
-    console.log('  GET    /health                      → Health check');
+    console.log('  POST   /auth/register               → Create account');
+    console.log('  POST   /auth/login                  → Sign in');
+    console.log('  POST   /sessions                    → [Auth] Create session');
+    console.log('  POST   /sessions/:id/message        → [Auth] Send message');
+    console.log('  GET    /sessions/:id/summary        → [Auth] Session analytics');
+    console.log('  POST   /sessions/:id/end            → [Auth] End session');
+    console.log('  GET    /sessions                    → [Auth] List sessions');
+    console.log('  DELETE /sessions/:id                → [Auth] Delete session');
+    console.log('  DELETE /sessions                    → [Auth] Clear history');
     console.log('');
-    console.log('💡 Run `npm run seed` to populate the knowledge base');
-    console.log('💡 Run `npm run setup-index` to create Atlas Vector Search index');
+    console.log('💡 Run `npm run seed` to populate knowledge base');
+    console.log('💡 Run `npm run setup-index` to create vector index');
     console.log('═══════════════════════════════════');
   });
 }

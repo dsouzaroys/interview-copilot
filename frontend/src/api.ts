@@ -2,8 +2,23 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'http://localhost:3000',
-  timeout: 60000, // 60s — agent loops can take time
+  timeout: 60000,
 });
+
+// Attach JWT from LocalStorage to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('interview_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+}
 
 export interface Session {
   sessionId: string;
@@ -30,6 +45,27 @@ export interface SessionSummary {
 }
 
 export const apiClient = {
+  // ─── Auth ───────────────────────────────────────────────────────────────────
+  login: async (payload: any) => {
+    const { data } = await api.post<{ token: string; user: User }>('/auth/login', payload);
+    localStorage.setItem('interview_token', data.token);
+    localStorage.setItem('interview_user', JSON.stringify(data.user));
+    return data;
+  },
+
+  register: async (payload: any) => {
+    const { data } = await api.post<{ token: string; user: User }>('/auth/register', payload);
+    localStorage.setItem('interview_token', data.token);
+    localStorage.setItem('interview_user', JSON.stringify(data.user));
+    return data;
+  },
+
+  logout: () => {
+    localStorage.removeItem('interview_token');
+    localStorage.removeItem('interview_user');
+  },
+
+  // ─── Sessions ───────────────────────────────────────────────────────────────
   createSession: async (payload: {
     interviewType: 'dsa' | 'backend' | 'system-design';
     difficulty: 'easy' | 'medium' | 'hard';
@@ -61,6 +97,16 @@ export const apiClient = {
     const { data } = await api.post<{ message: string; summary: SessionSummary }>(
       `/sessions/${sessionId}/end`
     );
+    return data;
+  },
+
+  deleteSession: async (sessionId: string) => {
+    const { data } = await api.delete(`/sessions/${sessionId}`);
+    return data;
+  },
+
+  clearHistory: async () => {
+    const { data } = await api.delete('/sessions');
     return data;
   },
 };

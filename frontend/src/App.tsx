@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { apiClient } from './api';
-import type { Session, SessionSummary } from './api';
+import type { Session, SessionSummary, User } from './api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,21 +37,118 @@ const difficultyIcon: Record<string, string> = {
   hard: '🔴',
 };
 
-// Render message content with basic markdown-like formatting
 function formatMessage(text: string): React.ReactNode {
   const lines = text.split('\n');
   return lines.map((line, i) => {
-    // Score line
     if (line.startsWith('📊')) {
       return <div key={i} className="score-line">{line}</div>;
     }
-    // Bold (markdown **)
     const parts = line.split(/\*\*(.*?)\*\*/g);
     const rendered = parts.map((part, j) =>
       j % 2 === 1 ? <strong key={j}>{part}</strong> : part
     );
     return <p key={i}>{rendered}</p>;
   });
+}
+
+// ─── Auth View ────────────────────────────────────────────────────────────────
+
+function AuthView({ onLogin }: { onLogin: (user: User) => void }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      if (isLogin) {
+        const res = await apiClient.login({ email, password });
+        onLogin(res.user);
+      } else {
+        const res = await apiClient.register({ email, password, name });
+        onLogin(res.user);
+      }
+    } catch (err: any) {
+      const resp = err.response?.data;
+      if (resp?.details?.fieldErrors) {
+        const firstField = Object.keys(resp.details.fieldErrors)[0];
+        const msg = resp.details.fieldErrors[firstField][0];
+        setError(`${firstField}: ${msg}`);
+      } else {
+        setError(resp?.error || 'Authentication failed');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <h1 className="auth-title">🧠 AI Interview Copilot</h1>
+        <p className="auth-subtitle">
+          {isLogin ? 'Welcome back! Sign in to continue.' : 'Create an account to start practicing.'}
+        </p>
+
+        {error && <div className="toast" style={{ position: 'static', marginBottom: '20px' }}>{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          {!isLogin && (
+            <div className="auth-input-group">
+              <label className="form-label">Full Name</label>
+              <input
+                className="auth-input"
+                type="text"
+                placeholder="John Doe"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+          )}
+          <div className="auth-input-group">
+            <label className="form-label">Email Address</label>
+            <input
+              className="auth-input"
+              type="email"
+              placeholder="name@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="auth-input-group">
+            <label className="form-label">Password</label>
+            <input
+              className="auth-input"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            {!isLogin && <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>Minimum 6 characters required.</p>}
+          </div>
+
+          <button className="auth-action-btn" type="submit" disabled={loading}>
+            {loading ? '⏳ Please wait...' : isLogin ? 'Sign In →' : 'Create Account →'}
+          </button>
+        </form>
+
+        <div className="auth-switch">
+          {isLogin ? "Don't have an account?" : 'Already have an account?'}
+          <button className="auth-switch-btn" onClick={() => setIsLogin(!isLogin)}>
+            {isLogin ? 'Sign Up' : 'Log In'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── New Session Modal ────────────────────────────────────────────────────────
@@ -169,7 +266,6 @@ function Analytics({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="dashboard">
-      {/* Stats row */}
       <div className="dashboard-grid">
         <div className="stat-card">
           <div className="stat-card-label">Avg Score</div>
@@ -197,7 +293,6 @@ function Analytics({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {/* Score chart + topic breakdown */}
       <div className="dashboard-row">
         <div className="panel">
           <div className="panel-title">📊 Score Timeline</div>
@@ -252,7 +347,6 @@ function Analytics({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {/* Weak / Strong areas */}
       <div className="dashboard-row">
         <div className="panel">
           <div className="panel-title">🔴 Areas to Improve</div>
@@ -298,7 +392,6 @@ function ChatView({ session }: { session: Session }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    // Greeting message on session open
     if (messages.length === 0) {
       setMessages([
         {
@@ -343,7 +436,7 @@ function ChatView({ session }: { session: Session }) {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'agent',
-        content: '⚠️ Failed to get response. Please check the server is running and try again.',
+        content: '⚠️ Failed to get response. Please check the server and try again.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errMsg]);
@@ -362,7 +455,6 @@ function ChatView({ session }: { session: Session }) {
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    // Auto-resize
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
   };
@@ -381,9 +473,6 @@ function ChatView({ session }: { session: Session }) {
             <span className="chat-stat">📊 Avg: {session.avgScore.toFixed(1)}/10</span>
           )}
         </div>
-        <span className="chat-stat" style={{ fontSize: '0.75rem', opacity: 0.5 }}>
-          {session.sessionId.slice(0, 8)}...
-        </span>
       </div>
 
       <div className="chat-messages">
@@ -418,7 +507,7 @@ function ChatView({ session }: { session: Session }) {
           <textarea
             ref={textareaRef}
             className="chat-textarea"
-            placeholder="Type your answer... (Shift+Enter for new line, Enter to send)"
+            placeholder="Type your answer..."
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
@@ -437,15 +526,32 @@ function ChatView({ session }: { session: Session }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('interview_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [view, setView] = useState<View>('chat');
   const [showModal, setShowModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Load sessions on mount
   useEffect(() => {
-    apiClient.getSessions().then(setSessions).catch(console.error);
-  }, []);
+    if (user) {
+      apiClient.getSessions().then(setSessions).catch(console.error);
+    }
+  }, [user]);
+
+  const handleLogin = (u: User) => {
+    setUser(u);
+  };
+
+  const handleLogout = () => {
+    apiClient.logout();
+    setUser(null);
+    setSessions([]);
+    setActiveSession(null);
+  };
 
   const handleSessionCreated = (sessionId: string, type: string, difficulty: string) => {
     const newSession: Session = {
@@ -463,10 +569,39 @@ export default function App() {
     setShowModal(false);
   };
 
+  const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this interview session?')) return;
+    try {
+      await apiClient.deleteSession(id);
+      setSessions((prev) => prev.filter((s) => s.sessionId !== id));
+      if (activeSession?.sessionId === id) setActiveSession(null);
+    } catch {
+      alert('Failed to delete session');
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Are you sure you want to clear ALL interview history? This cannot be undone.')) return;
+    try {
+      await apiClient.clearHistory();
+      setSessions([]);
+      setActiveSession(null);
+    } catch {
+      alert('Failed to clear history');
+    }
+  };
+
+  if (!user) {
+    return <AuthView onLogin={handleLogin} />;
+  }
+
   return (
-    <div className="app-shell">
-      {/* Top Bar */}
+    <div className={`app-shell ${isSidebarOpen ? 'sidebar-open' : ''}`}>
       <header className="topbar">
+        <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+          {isSidebarOpen ? '✕' : '☰'}
+        </button>
         <div className="topbar-brand">
           <div className="brain-icon">🧠</div>
           <span>AI Interview <span className="copilot">Copilot</span></span>
@@ -482,13 +617,22 @@ export default function App() {
             </button>
           </nav>
         )}
+
+        <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span className="user-name">{user.name}</span>
+          <div className="user-avatar">
+            👤
+          </div>
+        </div>
       </header>
 
-      {/* Sidebar */}
-      <aside className="sidebar">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
+
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="sidebar-title">Sessions</div>
-          <button className="btn-new-session" onClick={() => setShowModal(true)}>
+          <button className="btn-new-session" onClick={() => { setShowModal(true); setIsSidebarOpen(false); }}>
             <span>+</span> New Interview
           </button>
         </div>
@@ -503,32 +647,45 @@ export default function App() {
             <div
               key={s.sessionId}
               className={`session-item ${activeSession?.sessionId === s.sessionId ? 'active' : ''}`}
-              onClick={() => { setActiveSession(s); setView('chat'); }}
+              onClick={() => { setActiveSession(s); setView('chat'); setIsSidebarOpen(false); }}
             >
-              <div className={`session-item-label ${s.interviewType}`}>
-                {typeIcon[s.interviewType]} {typeLabel[s.interviewType]}
+              <div className="session-item-content">
+                <div className={`session-item-label ${s.interviewType}`}>
+                  {typeIcon[s.interviewType]} {typeLabel[s.interviewType]}
+                </div>
+                <div className="session-item-meta">
+                  <span>{difficultyIcon[s.difficulty]} {s.difficulty}</span>
+                  {s.avgScore > 0 && <span className="session-score">⭐ {s.avgScore.toFixed(1)}</span>}
+                </div>
               </div>
-              <div className="session-item-meta">
-                <span>{difficultyIcon[s.difficulty]} {s.difficulty}</span>
-                {s.avgScore > 0 && (
-                  <span className="session-score">⭐ {s.avgScore.toFixed(1)}</span>
-                )}
-                <span>{s.status === 'completed' ? '✅' : '🟢'}</span>
-              </div>
+              <button 
+                className="btn-delete-session" 
+                onClick={(e) => handleDeleteSession(s.sessionId, e)}
+                title="Delete history"
+              >
+                🗑️
+              </button>
             </div>
           ))}
         </div>
+
+        <div className="sidebar-footer">
+          <button className="btn-sidebar-secondary" onClick={handleLogout}>
+            🚪 Sign Out
+          </button>
+          <button className="btn-sidebar-secondary danger" onClick={handleClearHistory}>
+            🧹 Clear All History
+          </button>
+        </div>
       </aside>
 
-      {/* Main content */}
       <main className="main">
         {!activeSession ? (
           <div className="empty-state">
             <div className="empty-glow">🧠</div>
-            <h1 className="empty-title">Your AI Interview Copilot</h1>
+            <h1 className="empty-title">Welcome, {user.name}</h1>
             <p className="empty-subtitle">
-              Practice DSA, backend engineering, and system design interviews with an AI that
-              remembers your weaknesses and adapts every question to help you improve.
+              Ready to level up? Start a session and I'll adapt the questions to your current skill level.
             </p>
             <div className="start-options">
               {(['dsa', 'backend', 'system-design'] as const).map((type) => (
@@ -540,9 +697,9 @@ export default function App() {
                   <span className="start-card-icon">{typeIcon[type]}</span>
                   <div className="start-card-title">{typeLabel[type]}</div>
                   <div className="start-card-desc">
-                    {type === 'dsa' && 'Arrays, trees, DP...'}
-                    {type === 'backend' && 'REST, DBs, caching...'}
-                    {type === 'system-design' && 'Scale, architect...'}
+                    {type === 'dsa' && 'Algorithms & Patterns'}
+                    {type === 'backend' && 'APIs & Infrastructure'}
+                    {type === 'system-design' && 'Scalable Architecture'}
                   </div>
                 </div>
               ))}
@@ -555,7 +712,6 @@ export default function App() {
         )}
       </main>
 
-      {/* New Session Modal */}
       {showModal && (
         <NewSessionModal onClose={() => setShowModal(false)} onCreate={handleSessionCreated} />
       )}

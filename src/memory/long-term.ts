@@ -5,6 +5,7 @@ import { Session } from '../models/session.model';
 
 export interface EvaluationInput {
   sessionId: string;
+  userId: string;
   questionId: string;
   topic: string;
   interviewType: 'dsa' | 'backend' | 'system-design';
@@ -36,6 +37,7 @@ export interface CandidateHistory {
 export async function persistEvaluation(input: EvaluationInput): Promise<void> {
   await Evaluation.create({
     sessionId: input.sessionId,
+    userId: input.userId,
     questionId: input.questionId,
     topic: input.topic,
     interviewType: input.interviewType,
@@ -97,19 +99,21 @@ export async function closeSession(sessionId: string): Promise<void> {
 
 // ─── Get Candidate History ────────────────────────────────────────────────────
 
-export async function getCandidateHistory(sessionId: string): Promise<CandidateHistory> {
-  // Fetch all sessions to build cross-session profile
-  // In a multi-user system, filter by userId here
-  const allSessions = await Session.find({ status: { $in: ['active', 'completed'] } })
+export async function getCandidateHistory(userId: string): Promise<CandidateHistory> {
+  // Fetch sessions for this specific user
+  const allSessions = await Session.find({ 
+    userId,
+    status: { $in: ['active', 'completed'] } 
+  })
     .sort({ startedAt: -1 })
-    .limit(20);
+    .limit(50);
 
   const sessionIds = allSessions.map((s) => s.sessionId);
-  const allEvaluations = await Evaluation.find({ sessionId: { $in: sessionIds } }).sort({
+  const allEvaluations = await Evaluation.find({ userId }).sort({
     evaluatedAt: 1,
   });
 
-  // Aggregate weak areas from all sessions
+  // Aggregate weak areas from all user sessions
   const weakAreas = [...new Set(allSessions.flatMap((s) => s.weakAreasIdentified))];
   const strongAreas = [...new Set(allSessions.flatMap((s) => s.strongAreasIdentified))];
 
@@ -132,4 +136,20 @@ export async function getCandidateHistory(sessionId: string): Promise<CandidateH
     totalQuestions: allEvaluations.length,
     scoreTrend,
   };
+}
+
+// ─── Deletion Logic ───────────────────────────────────────────────────────────
+
+export async function deleteSessionData(userId: string, sessionId: string): Promise<void> {
+  await Promise.all([
+    Session.deleteOne({ userId, sessionId }),
+    Evaluation.deleteMany({ userId, sessionId }),
+  ]);
+}
+
+export async function clearUserHistory(userId: string): Promise<void> {
+  await Promise.all([
+    Session.deleteMany({ userId }),
+    Evaluation.deleteMany({ userId }),
+  ]);
 }

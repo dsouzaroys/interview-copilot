@@ -1,11 +1,11 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { env } from '../config/env';
 import { EVALUATION_SYSTEM_PROMPT } from './prompts';
 import { fetchQuestion, fetchNextQuestion } from '../rag/retriever';
 import { persistEvaluation, getCandidateHistory, upsertWeakArea } from '../memory/long-term';
 import { getSessionMeta, updateSessionMeta } from '../memory/short-term';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const ai = new GoogleGenAI({ apiKey: env.GOOGLE_API_KEY });
 
 // ─── Evaluation Response Type ────────────────────────────────────────────────
 
@@ -100,56 +100,56 @@ async function handleEvaluateAnswer(
   const topic = input['topic'] as string;
   const idealAnswerHints = (input['ideal_answer_hints'] as string) ?? '';
 
+  // Get user context from session meta
+  const meta = await getSessionMeta(sessionId);
+  if (!meta) throw new Error('Session metadata not found');
+  const userId = meta.userId;
+
   // Fetch ideal answer from DB for richer evaluation
   let idealContext = idealAnswerHints;
   if (!idealContext) {
     try {
       const questionDoc = await fetchQuestion(questionId);
       if (questionDoc) {
-        idealContext = `Key concepts: ${questionDoc.keyConcepts.join(', ')}. Ideal answer outline: ${questionDoc.idealAnswer.slice(0, 500)}`;
+        idealContext = `Key concepts: ${questionDoc.keyConcepts.join(', ')}. Ideal answer: ${questionDoc.idealAnswer.slice(0, 500)}`;
       }
     } catch {
       // Continue without ideal context
     }
   }
 
-  const evaluationUserMessage = `QUESTION: ${questionText}
+  const evaluationPrompt = `QUESTION: ${questionText}
 
 CANDIDATE'S ANSWER: ${candidateAnswer}
 
 ${idealContext ? `IDEAL ANSWER REFERENCE: ${idealContext}` : ''}
 
-Evaluate this answer now.`;
+Evaluate this answer now. Respond ONLY with valid JSON.`;
 
-  // Sub-call to Claude specifically for evaluation (no tools, structured output)
-  const evalResponse = await anthropic.messages.create({
-    model: 'claude-3-5-sonnet-latest',
-    max_tokens: 1024,
-    system: EVALUATION_SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: evaluationUserMessage }],
+  // Sub-call to Gemini specifically for structured evaluation (no tools)
+  const evalResult = await ai.models.generateContent({
+    model: 'gemini-2.5-flash', // Fast and cheap for evaluations
+    contents: evaluationPrompt,
+    config: {
+      systemInstruction: EVALUATION_SYSTEM_PROMPT,
+      responseMimeType: 'application/json', // Force JSON output
+    },
   });
 
-  const textBlock = evalResponse.content.find(
-    (block): block is Anthropic.TextBlock => block.type === 'text'
-  );
-
-  if (!textBlock) {
-    throw new Error('Evaluation response missing text block');
-  }
+  const rawText = evalResult.text ?? '';
 
   let evaluation: EvaluationResult;
   try {
-    // Strip any markdown fences if present
-    const cleanJson = textBlock.text.replace(/```json\n?|\n?```/g, '').trim();
-    evaluation = JSON.parse(cleanJson) as EvaluationResult;
+    evaluation = JSON.parse(rawText) as EvaluationResult;
   } catch {
-    throw new Error(`Failed to parse evaluation JSON: ${textBlock.text.slice(0, 200)}`);
+    throw new Error(`Failed to parse evaluation JSON: ${rawText.slice(0, 200)}`);
   }
 
   // Persist evaluation to MongoDB
   try {
     await persistEvaluation({
       sessionId,
+      userId,
       questionId,
       topic,
       interviewType,
@@ -161,8 +161,7 @@ Evaluate this answer now.`;
     });
 
     // Update running average in session meta
-    const meta = await getSessionMeta(sessionId);
-    const scores = [...(meta?.scores ?? []), evaluation.score];
+    const scores = [...(meta.scores ?? []), evaluation.score];
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
     await updateSessionMeta(sessionId, { scores, avgScore });
   } catch (err) {
@@ -185,7 +184,6 @@ async function handleStoreWeakArea(
   try {
     await upsertWeakArea({ sessionId, topic, concept, severity });
 
-    // Also update session meta in Redis
     const meta = await getSessionMeta(sessionId);
     const weakAreas = meta?.weakAreas ?? [];
     if (!weakAreas.includes(concept)) {
@@ -208,8 +206,10 @@ async function handleFetchCandidateProfile(
   _input: Record<string, unknown>
 ): Promise<unknown> {
   try {
-    const history = await getCandidateHistory(sessionId);
     const meta = await getSessionMeta(sessionId);
+    if (!meta) throw new Error('Session not found');
+
+    const history = await getCandidateHistory(meta.userId);
 
     return {
       session_id: sessionId,
@@ -220,9 +220,9 @@ async function handleFetchCandidateProfile(
       total_questions: history.totalQuestions,
       score_trend: history.scoreTrend,
       current_session: {
-        questions_asked: meta?.questionsAsked ?? 0,
-        scores_this_session: meta?.scores ?? [],
-        difficulty: meta?.difficulty ?? 'easy',
+        questions_asked: meta.questionsAsked ?? 0,
+        scores_this_session: meta.scores ?? [],
+        difficulty: meta.difficulty ?? 'easy',
       },
     };
   } catch (err) {

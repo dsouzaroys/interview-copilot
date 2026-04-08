@@ -1,7 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Response } from 'express';
 import { z } from 'zod';
 import { Session } from '../models/session.model';
 import { agentLoop } from '../agent/loop';
+import { Router } from 'express';
+import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 
 export const interviewRouter = Router();
 
@@ -9,10 +11,14 @@ const MessageSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty').max(5000),
 });
 
+// Use authentication for all interview interactions
+interviewRouter.use(authenticate);
+
 // POST /sessions/:id/message — Main turn endpoint
-interviewRouter.post('/:id/message', async (req: Request, res: Response) => {
+interviewRouter.post('/:id/message', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params['id']!;
+    const userId = req.userId!;
 
     // Validate request body
     const body = MessageSchema.safeParse(req.body);
@@ -20,10 +26,10 @@ interviewRouter.post('/:id/message', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid request', details: body.error.flatten() });
     }
 
-    // Verify session exists and is active
-    const session = await Session.findOne({ sessionId: id });
+    // Verify session exists, is active, and belongs to the user
+    const session = await Session.findOne({ sessionId: id, userId });
     if (!session) {
-      return res.status(404).json({ error: 'Session not found. Create one with POST /sessions' });
+      return res.status(404).json({ error: 'Session not found or unauthorized. Create one with POST /sessions' });
     }
     if (session.status === 'completed') {
       return res.status(400).json({

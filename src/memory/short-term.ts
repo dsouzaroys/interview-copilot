@@ -1,8 +1,8 @@
+import type { Content } from '@google/genai';
 import { redis } from '../config/redis';
-import type Anthropic from '@anthropic-ai/sdk';
 
 const SESSION_TTL_SECONDS = 60 * 60 * 2; // 2 hours
-const MAX_MESSAGES_VERBATIM = 20; // Keep last 20 messages; summarize older ones
+const MAX_MESSAGES_VERBATIM = 20; // Keep last 20 Content turns; summarize older
 
 export interface SessionMeta {
   sessionId: string;
@@ -15,26 +15,26 @@ export interface SessionMeta {
   questionsAsked: number;
   askedQuestionIds: string[];
   startedAt: string;
+  userId: string;
 }
 
-type MessageParam = Anthropic.MessageParam;
-
-// ─── Messages ────────────────────────────────────────────────────────────────
+// ─── Keys ─────────────────────────────────────────────────────────────────────
 
 const messagesKey = (id: string) => `session:${id}:messages`;
 const metaKey = (id: string) => `session:${id}:meta`;
 
-export async function saveMessages(sessionId: string, messages: MessageParam[]): Promise<void> {
-  // Context window guard: sliding window
+// ─── Messages  (Gemini Content[]) ─────────────────────────────────────────────
+
+export async function saveMessages(sessionId: string, messages: Content[]): Promise<void> {
   const windowed = applyContextWindow(messages);
   await redis.set(messagesKey(sessionId), JSON.stringify(windowed), 'EX', SESSION_TTL_SECONDS);
 }
 
-export async function getMessages(sessionId: string): Promise<MessageParam[]> {
+export async function getMessages(sessionId: string): Promise<Content[]> {
   const raw = await redis.get(messagesKey(sessionId));
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as MessageParam[];
+    return JSON.parse(raw) as Content[];
   } catch {
     return [];
   }
@@ -70,20 +70,24 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 // ─── Context Window Guard ─────────────────────────────────────────────────────
+// Prevents hitting Gemini's context limit on long interviews
 
-function applyContextWindow(messages: MessageParam[]): MessageParam[] {
+function applyContextWindow(messages: Content[]): Content[] {
   if (messages.length <= MAX_MESSAGES_VERBATIM) {
     return messages;
   }
 
-  // Keep the last MAX_MESSAGES_VERBATIM messages verbatim
   const recent = messages.slice(-MAX_MESSAGES_VERBATIM);
-
-  // Create a summary sentinel for older context
   const olderCount = messages.length - MAX_MESSAGES_VERBATIM;
-  const summary: MessageParam = {
+
+  // Inject a summary sentinel as first user turn
+  const summary: Content = {
     role: 'user',
-    content: `[System: ${olderCount} earlier messages were summarized to save context. The interview has been in progress. Continue based on the recent conversation below.]`,
+    parts: [
+      {
+        text: `[Context: ${olderCount} earlier turns were trimmed. Interview is ongoing — continue from the recent exchanges below.]`,
+      },
+    ],
   };
 
   return [summary, ...recent];

@@ -1,35 +1,35 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { FunctionDeclaration, Type } from '@google/genai';
 
-export const tools: Anthropic.Tool[] = [
+// ─── Gemini Function Declarations (@google/genai SDK) ─────────────────────────
+// Uses Type enum (STRING, OBJECT, ARRAY) — all-caps values in this SDK.
+
+export const toolDeclarations: FunctionDeclaration[] = [
   {
     name: 'get_next_question',
     description: `Fetches the next interview question from the curated knowledge base.
-    
-    ALWAYS use this tool when you need to ask a new question. NEVER invent or make up questions yourself.
-    The tool semantically matches questions to the candidate's weak areas using vector search.
-    It will avoid questions already asked in this session.`,
-    input_schema: {
-      type: 'object' as const,
+
+ALWAYS use this tool when you need to ask a new question. NEVER invent questions yourself.
+Semantically matches questions to weak areas. Avoids questions already asked this session.`,
+    parameters: {
+      type: Type.OBJECT,
       properties: {
         interview_type: {
-          type: 'string',
-          enum: ['dsa', 'backend', 'system-design'],
-          description: 'The type of interview',
+          type: Type.STRING,
+          description: 'The type of interview: dsa | backend | system-design',
         },
         difficulty: {
-          type: 'string',
-          enum: ['easy', 'medium', 'hard'],
-          description: 'Difficulty level for the question',
+          type: Type.STRING,
+          description: 'Difficulty level: easy | medium | hard',
         },
         weak_areas: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Topics the candidate is weak in — drives semantic question selection',
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "Topics the candidate is weak in — drives semantic question selection",
         },
         exclude_question_ids: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Question IDs already asked this session — always pass these to prevent repetition',
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: 'Question IDs already asked this session — prevents repetition',
         },
       },
       required: ['interview_type', 'difficulty', 'weak_areas', 'exclude_question_ids'],
@@ -37,37 +37,37 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: 'evaluate_answer',
-    description: `Evaluates the candidate's answer to a question using a structured rubric.
-    
-    ALWAYS call this tool after a candidate provides their answer. NEVER evaluate answers yourself.
-    Returns a score 0-10, dimension breakdown, strengths, missing concepts, and feedback.
-    After evaluation, decide if you should call store_weak_area based on the score.`,
-    input_schema: {
-      type: 'object' as const,
+    description: `Evaluates the candidate's answer using a structured rubric.
+
+ALWAYS call this after a candidate provides their answer. NEVER evaluate answers yourself.
+Returns a score 0-10, dimension breakdown, strengths, missing concepts, and feedback.
+If score < 6, call store_weak_area.`,
+    parameters: {
+      type: Type.OBJECT,
       properties: {
         question_id: {
-          type: 'string',
+          type: Type.STRING,
           description: 'The ID of the question being answered',
         },
         question_text: {
-          type: 'string',
+          type: Type.STRING,
           description: 'The full text of the question',
         },
         candidate_answer: {
-          type: 'string',
+          type: Type.STRING,
           description: "The candidate's complete answer",
         },
         interview_type: {
-          type: 'string',
-          enum: ['dsa', 'backend', 'system-design'],
+          type: Type.STRING,
+          description: 'Type of interview: dsa | backend | system-design',
         },
         topic: {
-          type: 'string',
-          description: 'The specific topic this question tests (e.g., "binary search", "caching", "rate limiting")',
+          type: Type.STRING,
+          description: 'Topic the question tests (e.g. "binary search", "caching")',
         },
         ideal_answer_hints: {
-          type: 'string',
-          description: 'Key points from the ideal answer to use as evaluation rubric',
+          type: Type.STRING,
+          description: 'Key points from the ideal answer used as evaluation rubric',
         },
       },
       required: ['question_id', 'question_text', 'candidate_answer', 'interview_type', 'topic'],
@@ -76,29 +76,27 @@ export const tools: Anthropic.Tool[] = [
   {
     name: 'store_weak_area',
     description: `Records a weak area for the candidate based on their performance.
-    
-    Call this when score < 6 OR when important concepts are missing from the answer.
-    This data persists across ALL sessions and influences future question selection.
-    Be specific with the concept — "database indexing" not just "databases".`,
-    input_schema: {
-      type: 'object' as const,
+
+Call when score < 6 OR when important concepts are missing.
+Persists across ALL sessions and influences future question selection.`,
+    parameters: {
+      type: Type.OBJECT,
       properties: {
         session_id: {
-          type: 'string',
+          type: Type.STRING,
           description: 'The current session ID',
         },
         topic: {
-          type: 'string',
-          description: 'Broad topic area (e.g., "databases", "system design", "algorithms")',
+          type: Type.STRING,
+          description: 'Broad topic area (e.g. "databases", "algorithms")',
         },
         concept: {
-          type: 'string',
-          description: 'Specific concept struggled with (e.g., "B-tree indexing", "cache eviction policies", "two-pointer technique")',
+          type: Type.STRING,
+          description: 'Specific concept struggled with (e.g. "B-tree indexing")',
         },
         severity: {
-          type: 'string',
-          enum: ['low', 'medium', 'high'],
-          description: 'low: score 5-6, medium: score 3-4, high: score 0-2',
+          type: Type.STRING,
+          description: 'Severity: low (score 5-6) | medium (score 3-4) | high (score 0-2)',
         },
       },
       required: ['session_id', 'topic', 'concept', 'severity'],
@@ -106,16 +104,15 @@ export const tools: Anthropic.Tool[] = [
   },
   {
     name: 'fetch_candidate_profile',
-    description: `Retrieves the candidate's complete performance profile across ALL past sessions.
-    
-    ALWAYS call this at the START of every session before asking the first question.
-    Use the weak areas to drive adaptive question selection.
-    Also call this when deciding the next question to personalize the difficulty and topic.`,
-    input_schema: {
-      type: 'object' as const,
+    description: `Retrieves the candidate's full performance profile across ALL past sessions.
+
+ALWAYS call this at the START of every session before asking the first question.
+Use weak areas to drive adaptive question selection.`,
+    parameters: {
+      type: Type.OBJECT,
       properties: {
         session_id: {
-          type: 'string',
+          type: Type.STRING,
           description: 'The current session ID',
         },
       },

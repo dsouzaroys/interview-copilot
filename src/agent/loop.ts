@@ -1,13 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI, Content, Part, FunctionCall, FunctionCallingConfigMode } from '@google/genai';
 import { env } from '../config/env';
-import { tools } from './tools';
+import { toolDeclarations } from './tools';
 import { buildSystemPrompt, PromptContext } from './prompts';
 import { dispatchTool } from './tool-handlers';
 import { getMessages, saveMessages, getSessionMeta } from '../memory/short-term';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const ai = new GoogleGenAI({ apiKey: env.GOOGLE_API_KEY });
 
-const MAX_LOOP_ITERATIONS = 10; // Safety limit
+const MAX_LOOP_ITERATIONS = 10;
+const MODEL = 'gemini-2.5-flash';
 
 export interface AgentLoopResult {
   reply: string;
@@ -15,18 +16,17 @@ export interface AgentLoopResult {
   iterationCount: number;
 }
 
+// ─── Agent Loop ───────────────────────────────────────────────────────────────
+
 export async function agentLoop(
   sessionId: string,
   userMessage: string
 ): Promise<AgentLoopResult> {
-  // Load existing conversation history from Redis
-  const messages = await getMessages(sessionId);
+  // Load existing conversation history from Redis (Content[] format)
+  const storedMessages = await getMessages(sessionId);
   const sessionMeta = await getSessionMeta(sessionId);
 
-  // Append the new user message
-  messages.push({ role: 'user', content: userMessage });
-
-  // Build dynamic system prompt injecting current candidate profile
+  // Build dynamic system prompt with candidate profile
   const promptContext: PromptContext = {
     weakAreas: sessionMeta?.weakAreas ?? [],
     strongAreas: sessionMeta?.strongAreas ?? [],
@@ -36,85 +36,97 @@ export async function agentLoop(
     interviewType: sessionMeta?.interviewType ?? 'backend',
   };
 
-  const systemPrompt = buildSystemPrompt(promptContext);
+  const systemInstruction = buildSystemPrompt(promptContext);
+
+  // Build live conversation history
+  const history: Content[] = [...storedMessages];
+
+  // Append new user message
+  history.push({ role: 'user', parts: [{ text: userMessage }] });
+
   const toolsUsed: string[] = [];
   let iterationCount = 0;
 
-  // ─── Agentic While-Loop ──────────────────────────────────────────────────────
+  // ─── Agentic While-Loop ───────────────────────────────────────────────────
   while (iterationCount < MAX_LOOP_ITERATIONS) {
     iterationCount++;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-latest',
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools,
-      messages,
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: history,
+      config: {
+        systemInstruction,
+        tools: [{ functionDeclarations: toolDeclarations }],
+        toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
+      },
     });
 
-    // ── Tool Use branch ─────────────────────────────────────────────────────
-    if (response.stop_reason === 'tool_use') {
-      const toolUseBlocks = response.content.filter(
-        (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
-      );
+    const candidate = response.candidates?.[0];
+    if (!candidate?.content) {
+      throw new Error('Gemini returned no candidate content');
+    }
 
-      // Execute ALL tool calls in PARALLEL
-      const toolResults = await Promise.all(
-        toolUseBlocks.map(async (toolBlock) => {
-          toolsUsed.push(toolBlock.name);
+    const responseContent = candidate.content;
 
-          let result: unknown;
+    // ── Function Call Branch ──────────────────────────────────────────────
+    const functionCallParts = (responseContent.parts ?? []).filter(
+      (p): p is Part & { functionCall: FunctionCall } => !!p.functionCall
+    );
+
+    if (functionCallParts.length > 0) {
+      // Add model's function-call turn to history
+      history.push(responseContent);
+
+      // Execute ALL function calls in parallel
+      const functionResponseParts: Part[] = await Promise.all(
+        functionCallParts.map(async (part) => {
+          const { name, args } = part.functionCall;
+          toolsUsed.push(name ?? 'unknown');
+
+          let toolResult: unknown;
           try {
-            result = await dispatchTool(
+            toolResult = await dispatchTool(
               sessionId,
-              toolBlock.name,
-              toolBlock.input as Record<string, unknown>
+              name ?? '',
+              (args ?? {}) as Record<string, unknown>
             );
           } catch (err) {
-            result = {
+            toolResult = {
               error: err instanceof Error ? err.message : 'Tool execution failed',
             };
           }
 
           return {
-            type: 'tool_result' as const,
-            tool_use_id: toolBlock.id,
-            content: JSON.stringify(result),
-          };
+            functionResponse: {
+              name: name ?? '',
+              response: toolResult as Record<string, unknown>,
+            },
+          } satisfies Part;
         })
       );
 
-      // Append assistant message (MUST include tool_use blocks)
-      messages.push({ role: 'assistant', content: response.content });
+      // Function responses go back as 'user' role (Gemini's protocol)
+      history.push({ role: 'user', parts: functionResponseParts });
 
-      // Append tool results in a USER message — Anthropic's required format
-      messages.push({ role: 'user', content: toolResults });
-
-      continue; // Loop back to next Claude call
+      continue; // Let Gemini process tool results
     }
 
-    // ── End Turn branch ─────────────────────────────────────────────────────
-    if (response.stop_reason === 'end_turn') {
-      const textBlock = response.content.find(
-        (block): block is Anthropic.TextBlock => block.type === 'text'
-      );
+    // ── Text Response Branch ──────────────────────────────────────────────
+    const textPart = (responseContent.parts ?? []).find((p): p is Part => !!p.text);
+    const reply =
+      textPart?.text ??
+      "I had trouble generating a response. Let's continue — please repeat your answer.";
 
-      const reply =
-        textBlock?.text ??
-        "I had an issue generating a response. Let's continue — please repeat your answer.";
+    // Add final model turn to history
+    history.push(responseContent);
 
-      // Append the final assistant reply
-      messages.push({ role: 'assistant', content: reply });
+    // Persist updated conversation to Redis
+    await saveMessages(sessionId, history);
 
-      // Persist updated conversation to Redis
-      await saveMessages(sessionId, messages);
-
-      return { reply, toolsUsed, iterationCount };
-    }
-
-    // ── Safety: unexpected stop reason ─────────────────────────────────────
-    throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
+    return { reply, toolsUsed, iterationCount };
   }
 
-  throw new Error(`Agent loop exceeded ${MAX_LOOP_ITERATIONS} iterations — possible infinite loop`);
+  throw new Error(
+    `Agent loop exceeded ${MAX_LOOP_ITERATIONS} iterations — possible infinite loop`
+  );
 }

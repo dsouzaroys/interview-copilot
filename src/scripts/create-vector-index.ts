@@ -22,7 +22,7 @@ async function createVectorIndex() {
         {
           type: 'vector',
           path: 'embedding',
-          numDimensions: EMBEDDING_DIMENSIONS, // 768 for text-embedding-004
+          numDimensions: EMBEDDING_DIMENSIONS, // 768 for text-embedding-001
           similarity: 'cosine',
         },
         {
@@ -59,7 +59,7 @@ async function createVectorIndex() {
     console.log('');
     console.log('Index details:');
     console.log(`  Name:       question_vector_index`);
-    console.log(`  Dimensions: ${EMBEDDING_DIMENSIONS} (Google text-embedding-004)`);
+    console.log(`  Dimensions: ${EMBEDDING_DIMENSIONS} (Google text-embedding-001)`);
     console.log(`  Similarity: cosine`);
     console.log(`  Filters:    interviewType, difficulty, tags`);
     console.log('');
