@@ -1,0 +1,222 @@
+[
+  {
+    "id": "sd-001",
+    "topic": "URL shortener",
+    "difficulty": "easy",
+    "interviewType": "system-design",
+    "questionText": "Design a URL shortener like bit.ly. Walk through your complete architecture.",
+    "idealAnswer": "Core: encode long URL to 6-8 char short code (base62: 62^7 = 3.5T unique URLs). Storage: hash map in DB. Redirect: 301 (permanent, browser caches) vs 302 (temporary, tracks clicks). DB: key-value store (DynamoDB/Redis) for O(1) lookup. Scale reads with CDN. Collision: check existence + retry. Custom aliases: user-provided code. Analytics: async tracking via message queue. Rate limit creation per IP.",
+    "keyConcepts": ["base62 encoding", "301 vs 302 redirect", "read-heavy workload", "CDN caching", "collision handling"],
+    "tags": ["URL-shortener", "system-design", "hashing"],
+    "followUpHints": ["How do you prevent collision at scale?", "Analytics tracking design"]
+  },
+  {
+    "id": "sd-002",
+    "topic": "chat system",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design a real-time chat system like WhatsApp. Support 1:1 and group messaging.",
+    "idealAnswer": "WebSocket connections per user maintained to chat servers. Connection mapping: user → server in Redis. Message flow: sender → chat server → message DB (Cassandra — write-heavy, time-series) + recipient's server via service discovery. Offline: store undelivered messages, push notification. Group chat: fanout to all members. Message ordering: Snowflake IDs or per-conversation sequence. Read receipts: async. Media: S3 + CDN.",
+    "keyConcepts": ["WebSocket connection management", "message ordering", "Cassandra for messages", "fanout", "offline delivery", "push notifications"],
+    "tags": ["chat", "WebSocket", "real-time", "system-design"],
+    "followUpHints": ["End-to-end encryption design", "How to scale to 1B users?"]
+  },
+  {
+    "id": "sd-003",
+    "topic": "rate limiter",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design a distributed rate limiter that works across multiple servers.",
+    "idealAnswer": "Centralized Redis for distributed counting. Sliding window with Redis sorted sets (timestamp as score, ZCOUNT for window). Issues: single Redis = SPOF → use Redis cluster. Lua scripts for atomicity. Local rate limiting as fast path. Response headers: X-RateLimit-Remaining. Soft vs hard limits. Rate limit by: IP, user ID, API key. Different limits per endpoint/tier. Graceful degradation when Redis is down.",
+    "keyConcepts": ["centralized Redis", "Lua atomicity", "sliding window", "Redis cluster", "graceful degradation"],
+    "tags": ["rate-limiter", "Redis", "distributed", "system-design"],
+    "followUpHints": ["Rate limiting across data centers", "Graduated response (throttling before blocking)"]
+  },
+  {
+    "id": "sd-004",
+    "topic": "news feed",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a news feed system like Twitter/Facebook. Explain fanout strategies.",
+    "idealAnswer": "Fanout-on-write (push): when user posts, pre-populate all followers' feeds. Fast reads, expensive writes for celebrities. Fanout-on-read (pull): compute feed at read time by merging followed users' posts. Flexible but slow for large follow graphs. Hybrid: fanout-on-write for regular users, fanout-on-read for celebrity accounts (>500K followers). Storage: Redis sorted set per user (postId as score=timestamp). Feed generation limit: top 500-1000 posts. Pagination: cursor-based.",
+    "keyConcepts": ["fanout-on-write vs read", "hybrid approach", "celebrity problem", "Redis sorted sets", "cursor pagination"],
+    "tags": ["news-feed", "fanout", "Twitter", "system-design"],
+    "followUpHints": ["How do you handle the celebrity problem?", "Feed ranking algorithm"]
+  },
+  {
+    "id": "sd-005",
+    "topic": "distributed cache",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design a distributed cache like Redis or Memcached.",
+    "idealAnswer": "Consistent hashing maps keys to nodes — adding/removing node only moves ~1/n keys. Each node stores key-value with TTL. Replication: primary-replica for availability. Eviction: LRU (most common). Cache coherence: write-through or invalidation on update. Client-side sharding vs proxy-based (Redis Cluster). Hot keys: replicate popular keys across multiple shards. Memory management: slab allocation (Memcached).",
+    "keyConcepts": ["consistent hashing", "replication", "LRU eviction", "hot key problem", "client vs proxy sharding"],
+    "tags": ["distributed-cache", "Redis", "consistent-hashing", "system-design"],
+    "followUpHints": ["How does Redis Cluster work?", "Cache warming strategies"]
+  },
+  {
+    "id": "sd-006",
+    "topic": "search autocomplete",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design a search autocomplete system (typeahead) that returns suggestions as users type.",
+    "idealAnswer": "Trie data structure for prefix matching. Scale: distribute Trie across servers by prefix range. Ranking: store top-k results at each Trie node (updated async via aggregation pipeline). Data collection: log search queries, aggregate in Hadoop/Spark, update Trie periodically. Caching: Redis for popular prefixes (high hit rate). Response time: <100ms requirement. Personalization: blend global suggestions with user history.",
+    "keyConcepts": ["Trie prefix matching", "top-k at each node", "aggregation pipeline", "caching popular prefixes", "sub-100ms latency"],
+    "tags": ["autocomplete", "trie", "search", "system-design"],
+    "followUpHints": ["Real-time vs batch Trie updates", "Fuzzy matching for typos"]
+  },
+  {
+    "id": "sd-007",
+    "topic": "video streaming",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a video streaming service like YouTube. Focus on upload, storage, and playback.",
+    "idealAnswer": "Upload: direct to S3 via presigned URL. Processing: async transcoding pipeline (FFmpeg) to multiple resolutions/codecs (H.264, VP9). Message queue triggers transcoding workers. Storage: S3 + CDN (CloudFront). Adaptive bitrate streaming (ABR): HLS or DASH — video split into 2-10 second chunks, client selects quality based on bandwidth. Metadata: MySQL for video info. Search: Elasticsearch. Thumbnail: extracted from first few frames.",
+    "keyConcepts": ["transcoding pipeline", "adaptive bitrate streaming", "HLS/DASH", "CDN", "presigned URLs", "S3"],
+    "tags": ["video-streaming", "CDN", "HLS", "system-design"],
+    "followUpHints": ["How to handle live streaming?", "Video recommendation system"]
+  },
+  {
+    "id": "sd-008",
+    "topic": "notification system",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design a push notification system that supports iOS, Android, and email at scale.",
+    "idealAnswer": "Notification service receives events and routes based on user preferences and device type. iOS: APNs (Apple Push Notification). Android: FCM (Firebase). Email: SendGrid/SES. Architecture: event → notification service → queue per channel → channel workers → provider. Worker pattern enables retry with exponential backoff. Deduplication: idempotency key prevents duplicate sends. User preferences DB determines channel priority. Bulk notifications: fan-out via partitioned queues.",
+    "keyConcepts": ["APNs/FCM", "channel workers", "retry with backoff", "deduplication", "user preferences", "fan-out"],
+    "tags": ["notifications", "push", "APNs", "FCM", "system-design"],
+    "followUpHints": ["Notification scheduling", "Do-not-disturb preferences"]
+  },
+  {
+    "id": "sd-009",
+    "topic": "API gateway",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "What is an API gateway? Design one with rate limiting, auth, and routing.",
+    "idealAnswer": "API gateway is the single entry point for all clients. Responsibilities: authentication (verify JWT/API key), authorization, rate limiting, request routing to microservices, SSL termination, request/response transformation, logging/tracing, caching. Routing: path-based (/users → user service, /orders → order service). Load balancing per service. Circuit breaker for failing services. Kong, AWS API Gateway, nginx. Plugin architecture for extensibility.",
+    "keyConcepts": ["single entry point", "SSL termination", "routing", "circuit breaker", "plugin architecture", "service discovery"],
+    "tags": ["API-gateway", "microservices", "routing", "system-design"],
+    "followUpHints": ["Service mesh vs API gateway", "API gateway in Kubernetes"]
+  },
+  {
+    "id": "sd-010",
+    "topic": "distributed file storage",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a distributed file storage system like Google Drive or Dropbox.",
+    "idealAnswer": "Client sync: delta encoding, only upload changed blocks (chunking files into 4MB blocks). Chunked upload: parallel + resumable. Storage: Google Cloud Storage/S3 for raw data. Metadata DB: file tree, version history (MySQL + change log). Conflict resolution: last-write-wins or merge. Deduplication: content-addressable storage (hash of file = storage key). Sharing: access control lists (ACLs). CDN for popular files. Mobile sync: careful battery/bandwidth management.",
+    "keyConcepts": ["chunking", "delta encoding", "content-addressable storage", "deduplication", "ACL", "conflict resolution"],
+    "tags": ["file-storage", "sync", "Dropbox", "system-design"],
+    "followUpHints": ["File versioning design", "Collaborative editing"]
+  },
+  {
+    "id": "sd-011",
+    "topic": "ride-sharing backend",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design the backend for a ride-sharing app like Uber. Focus on matching and location tracking.",
+    "idealAnswer": "Location updates: drivers send GPS every 4 seconds via WebSocket. Storage: Redis geospatial (GEOADD, GEORADIUS) for real-time driver positions. Matching: GEORADIUS query to find nearby drivers, rank by ETA (Google Maps API). Trip lifecycle: requested → matched → en-route → arrived → completed. Dispatch service: assigns driver. Surge pricing: demand/supply ratio in geohash cells. Payments: async via queue. Trip history: PostgreSQL.",
+    "keyConcepts": ["geospatial indexing", "Redis GEORADIUS", "geohash", "surge pricing", "real-time location updates"],
+    "tags": ["ride-sharing", "geospatial", "Redis", "matching", "system-design"],
+    "followUpHints": ["How to calculate ETA accurately?", "Driver-rider matching optimization"]
+  },
+  {
+    "id": "sd-012",
+    "topic": "search engine",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a web crawler and search engine. What's the architecture for indexing and ranking?",
+    "idealAnswer": "Crawler: seed URLs → BFS queue → fetch → parse links + extract text → store. Politeness: robots.txt, crawl delay per domain. Deduplication: URL normalization + hash set. Index: inverted index (term → document list with positions). Storage: distributed (each shard handles part of index). Ranking: TF-IDF for relevance + PageRank for authority. Serving: query parsing → index lookup → ranking → snippet extraction. Real-time updates vs batch index builds.",
+    "keyConcepts": ["inverted index", "BFS crawling", "robots.txt", "TF-IDF", "PageRank", "index sharding"],
+    "tags": ["search-engine", "crawler", "inverted-index", "system-design"],
+    "followUpHints": ["How to crawl JavaScript-rendered pages?", "Real-time indexing"]
+  },
+  {
+    "id": "sd-013",
+    "topic": "real-time collaborative editor",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a real-time collaborative document editor like Google Docs.",
+    "idealAnswer": "Approach 1: Operational Transform (OT) — transform concurrent operations to preserve intent. Complex to implement correctly. Approach 2: CRDTs (Conflict-free Replicated Data Types) — mathematical data structures that merge automatically. Yjs, Automerge. WebSocket for real-time sync. Each client gets same document after convergence. History: append-only log of operations. Awareness: cursor positions, user presence. Snapshots + operation logs for efficient startup (don't replay all history).",
+    "keyConcepts": ["Operational Transform", "CRDT", "convergence", "WebSocket sync", "append-only operation log", "snapshots"],
+    "tags": ["collaborative-editing", "CRDT", "OT", "real-time", "system-design"],
+    "followUpHints": ["OT vs CRDT trade-offs", "Offline editing with sync on reconnect"]
+  },
+  {
+    "id": "sd-014",
+    "topic": "recommendation system",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a recommendation system (e.g., Netflix, Spotify). What algorithms and data pipelines are involved?",
+    "idealAnswer": "Collaborative filtering: find users with similar taste, recommend what they liked. Problem: cold start for new users. Content-based: recommend similar items based on features. Matrix factorization (Singular Value Decomposition): decompose user-item rating matrix to find latent factors — scales better. Pipelines: offline training (Spark) on historical interaction data → model stored in feature store → real-time serving. A/B test different algorithms. Two-stage: candidate generation → ranking. Embeddings for item/user representations.",
+    "keyConcepts": ["collaborative filtering", "matrix factorization", "cold start problem", "two-stage ranking", "feature store", "A/B testing"],
+    "tags": ["recommendation", "ML", "collaborative-filtering", "system-design"],
+    "followUpHints": ["How do you solve cold start?", "Online vs offline learning"]
+  },
+  {
+    "id": "sd-015",
+    "topic": "distributed job scheduler",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a distributed cron job scheduler that supports millions of jobs.",
+    "idealAnswer": "Job storage: DB with next_run_at timestamp. Polling workers: scan for due jobs, acquire distributed lock (Redis Redlock or DB row lock) to prevent double execution. Partitioning: divide jobs by hash of job_id across worker pools. Leader election for coordination. Retry with exponential backoff + dead letter queue. Job types: one-time vs recurring (cron expression parsing). Missed runs: configurable catch-up or skip. Monitoring: job execution history, failed job alerts.",
+    "keyConcepts": ["distributed locking", "Redlock", "partitioned workers", "leader election", "cron expression", "missed run handling"],
+    "tags": ["scheduler", "cron", "distributed-locking", "system-design"],
+    "followUpHints": ["How to handle job failures across regions?", "Job priority queuing"]
+  },
+  {
+    "id": "sd-016",
+    "topic": "e-commerce inventory",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design an inventory management system that prevents overselling when flash sales happen.",
+    "idealAnswer": "Prevent overselling: optimistic locking (version field + WHERE version=x in UPDATE) or pessimistic locking (SELECT FOR UPDATE). For high concurrency flash sales: Redis atomic DECR on inventory counter (prevents race conditions), persist to DB async. Queue incoming orders during peak. Reserve inventory on cart add, release on timeout. DB constraint: inventory >= 0. Rollback on payment failure releases reserved stock.",
+    "keyConcepts": ["optimistic vs pessimistic locking", "Redis atomic DECR", "inventory reservation", "rollback on failure"],
+    "tags": ["inventory", "e-commerce", "concurrency", "system-design"],
+    "followUpHints": ["Flash sale architecture at 1M concurrent users", "Distributed transaction for order + inventory"]
+  },
+  {
+    "id": "sd-017",
+    "topic": "payment system",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "Design a payment processing system. How do you ensure exactly-once payment processing?",
+    "idealAnswer": "Idempotency keys: client generates UUID per payment, server deduplicates. Store idempotency key + result. Two-phase: create payment intent → execute. Saga pattern for multi-step (reserve funds → process → settle). Async: queue-based processing with acknowledgment. Reconciliation: daily batch compare transactions with bank statements. Ledger: double-entry accounting (debit one account, credit another). PCI compliance: never store raw card numbers (tokenize with Stripe/Braintree). Retry with exponential backoff.",
+    "keyConcepts": ["idempotency keys", "saga pattern", "double-entry ledger", "PCI compliance", "reconciliation", "tokenization"],
+    "tags": ["payment", "idempotency", "saga", "system-design"],
+    "followUpHints": ["How to handle currency exchange?", "Fraud detection system"]
+  },
+  {
+    "id": "sd-018",
+    "topic": "ad click tracking",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design an ad click tracking system that handles 10,000 clicks/second with real-time analytics.",
+    "idealAnswer": "Click event → Kafka (buffer, decouple) → stream processor (Flink/Spark Streaming) → real-time aggregation (counts per ad, per hour) stored in Redis → periodic flush to data warehouse (Redshift/BigQuery) for historical analytics. Click deduplication: Redis Bloom filter to detect bot/duplicate clicks. Impression vs click vs conversion funnel. Batch aggregation for billing reports. Latency: click acknowledgment must be fast (<100ms) — async everything after receipt.",
+    "keyConcepts": ["Kafka buffering", "stream processing", "Bloom filter deduplication", "lambda architecture", "real-time vs batch"],
+    "tags": ["ad-tracking", "Kafka", "stream-processing", "system-design"],
+    "followUpHints": ["Click fraud detection", "Lambda vs Kappa architecture"]
+  },
+  {
+    "id": "sd-019",
+    "topic": "proximity service",
+    "difficulty": "medium",
+    "interviewType": "system-design",
+    "questionText": "Design a proximity search feature (like 'find restaurants near me') that works at global scale.",
+    "idealAnswer": "Geospatial indexing strategies: Geohash (encode location as prefix string, nearby cells share prefix — PostgreSQL, Redis GEOADD), Quadtree (recursive 2D space partitioning), H3 (Uber — hexagonal grid). Two-step: geohash cell → expand if not enough results. Static POIs: DB + geospatial index. Dynamic (moving objects): Redis GEOADD/GEORADIUS. Caching: tile-based (precompute results per geohash level). CDN for static map tiles.",
+    "keyConcepts": ["Geohash", "Quadtree", "H3 hexagonal grid", "Redis GEORADIUS", "tile-based caching"],
+    "tags": ["proximity", "geospatial", "geohash", "maps", "system-design"],
+    "followUpHints": ["How to handle moving objects efficiently?", "Geofencing implementation"]
+  },
+  {
+    "id": "sd-020",
+    "topic": "distributed transaction",
+    "difficulty": "hard",
+    "interviewType": "system-design",
+    "questionText": "How would you handle distributed transactions across multiple microservices without two-phase commit?",
+    "idealAnswer": "2PC problems: blocking protocol, coordinator SPOF, poor availability. Saga pattern: long-lived transaction broken into local transactions with compensating actions on failure. Choreography saga: services emit events, each reacts and emits next. Orchestration saga: central coordinator (saga orchestrator) calls services sequentially. Outbox pattern: write event to same DB as domain data in single transaction, then async publish to event bus — solves dual-write. Eventual consistency is the trade-off. Idempotent consumers ensure safe retry.",
+    "keyConcepts": ["2PC limitations", "saga choreography vs orchestration", "compensating transactions", "outbox pattern", "eventual consistency"],
+    "tags": ["distributed-transactions", "saga", "outbox", "microservices", "system-design"],
+    "followUpHints": ["Outbox pattern implementation", "When is 2PC acceptable?"]
+  }
+]

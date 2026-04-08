@@ -1,0 +1,222 @@
+[
+  {
+    "id": "dsa-001",
+    "topic": "arrays",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Given an array of integers, find two numbers that add up to a target sum. Return their indices.",
+    "idealAnswer": "Use a hash map to store each number and its index as you iterate. For each element, check if (target - current) exists in the map. This gives O(n) time and O(n) space. The naive brute-force is O(n²). Edge cases: no solution exists, array has <2 elements, duplicates.",
+    "keyConcepts": ["hash map", "complement lookup", "O(n) time complexity", "two-pass vs one-pass"],
+    "tags": ["arrays", "hash-map", "two-sum"],
+    "followUpHints": ["What if the array is sorted?", "What if you need all pairs, not just one?"]
+  },
+  {
+    "id": "dsa-002",
+    "topic": "binary search",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Implement binary search on a sorted array. When would you use it, and what are the common pitfalls?",
+    "idealAnswer": "Binary search divides the search space in half each iteration. Key: calculate mid as lo + (hi-lo)/2 (not (lo+hi)/2 to avoid integer overflow). Loop condition: lo <= hi. Pitfalls: off-by-one errors in boundary update (hi = mid-1, lo = mid+1), not checking if array is sorted, infinite loops when lo=hi=mid.",
+    "keyConcepts": ["divide and conquer", "O(log n)", "integer overflow prevention", "loop invariant"],
+    "tags": ["binary-search", "arrays", "searching"],
+    "followUpHints": ["How would you find the first or last occurrence of a target?", "Binary search on answer space"]
+  },
+  {
+    "id": "dsa-003",
+    "topic": "linked list",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "How would you reverse a singly linked list? Provide both iterative and recursive solutions.",
+    "idealAnswer": "Iterative: use prev, current, next pointers. Move through list setting each node's next to prev. O(n) time, O(1) space. Recursive: reverse rest of list, then point head.next.next = head, head.next = null. O(n) time but O(n) space from call stack. Iterative is preferred in production.",
+    "keyConcepts": ["pointer manipulation", "iterative vs recursive", "in-place reversal", "call stack overhead"],
+    "tags": ["linked-list", "pointers", "reversal"],
+    "followUpHints": ["Reverse only k nodes at a time", "Reverse in groups of k"]
+  },
+  {
+    "id": "dsa-004",
+    "topic": "trees",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Explain tree traversal algorithms: inorder, preorder, postorder, and level-order. When do you use each?",
+    "idealAnswer": "Inorder (L-Root-R): gives sorted output for BST. Preorder (Root-L-R): serialize tree, creates copy. Postorder (L-R-Root): delete tree, evaluate expressions. Level-order (BFS): find shortest path, print level by level — needs a queue. All are O(n). Level-order is O(w) space where w is max width.",
+    "keyConcepts": ["DFS traversals", "BFS traversal", "queue for level-order", "BST properties"],
+    "tags": ["trees", "traversal", "DFS", "BFS"],
+    "followUpHints": ["Implement iteratively using a stack", "Find max depth of binary tree"]
+  },
+  {
+    "id": "dsa-005",
+    "topic": "dynamic programming",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Solve the coin change problem: Given coin denominations and a target amount, find the minimum number of coins needed.",
+    "idealAnswer": "Classic DP. Define dp[i] = min coins to make amount i. dp[0]=0, dp[i]=infinity initially. For each amount i from 1 to target, try each coin c: dp[i] = min(dp[i], dp[i-c]+1). O(amount × coins) time and space. Key insight: optimal substructure — optimal solution for amount i uses optimal solution for amount i-coin.",
+    "keyConcepts": ["optimal substructure", "overlapping subproblems", "bottom-up DP", "state definition"],
+    "tags": ["dynamic-programming", "coins", "optimization"],
+    "followUpHints": ["What if you need to return the actual coins used?", "Number of ways to make change (unbounded knapsack)"]
+  },
+  {
+    "id": "dsa-006",
+    "topic": "graphs",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Detect if a directed graph has a cycle. What are the different approaches?",
+    "idealAnswer": "Approach 1: DFS with coloring — white (unvisited), gray (in-progress), black (done). If DFS visits a gray node, cycle detected. O(V+E). Approach 2: Topological sort (Kahn's BFS) — if all nodes can be topologically sorted, no cycle. Remaining nodes with in-degree > 0 form cycles. For undirected graphs: DFS tracking parent is enough.",
+    "keyConcepts": ["DFS coloring", "topological sort", "Kahn's algorithm", "directed vs undirected cycles"],
+    "tags": ["graphs", "cycle-detection", "DFS", "topological-sort"],
+    "followUpHints": ["Find the actual cycle path", "Union-Find for undirected graphs"]
+  },
+  {
+    "id": "dsa-007",
+    "topic": "sliding window",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Find the longest substring without repeating characters. Walk through your approach.",
+    "idealAnswer": "Sliding window with hash map/set. Maintain a window [left, right]. Expand right; when duplicate found, shrink from left until no duplicate. Track the max window size. O(n) time — each character added and removed at most once. Hash set for O(1) lookup. Alternative: hash map storing last seen index for O(n/2) left pointer jumps.",
+    "keyConcepts": ["sliding window pattern", "two pointers", "hash set/map", "amortized O(n)"],
+    "tags": ["sliding-window", "strings", "two-pointers"],
+    "followUpHints": ["What about longest substring with exactly k unique chars?", "Minimum window substring"]
+  },
+  {
+    "id": "dsa-008",
+    "topic": "stack",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Implement a stack that supports push, pop, peek, and getMin() — all in O(1).",
+    "idealAnswer": "Use two stacks: main stack and a min-stack. Push to both; min-stack only updates when new value <= current min. Pop from both simultaneously. getMin() peeks at top of min-stack. O(1) all operations, O(n) space. Alternative: store (value, currentMin) tuples on single stack.",
+    "keyConcepts": ["auxiliary stack", "min-tracking", "space-time tradeoff", "invariant maintenance"],
+    "tags": ["stack", "design", "O(1)"],
+    "followUpHints": ["What about max-stack?", "Design a queue using two stacks"]
+  },
+  {
+    "id": "dsa-009",
+    "topic": "heap",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Find the kth largest element in an unsorted array. What approaches exist and what are their trade-offs?",
+    "idealAnswer": "Approach 1: Min-heap of size k. Insert all elements; eject when >k. Top of heap is kth largest. O(n log k) time, O(k) space — best for streaming. Approach 2: QuickSelect — average O(n), worst O(n²). Approach 3: Sort — O(n log n). For k << n, heap is best. QuickSelect is fastest on average but not stable worst-case.",
+    "keyConcepts": ["min-heap", "QuickSelect", "k elements", "streaming vs batch"],
+    "tags": ["heap", "sorting", "quickselect", "kth-largest"],
+    "followUpHints": ["Find median of a stream", "Top K frequent elements"]
+  },
+  {
+    "id": "dsa-010",
+    "topic": "LRU cache",
+    "difficulty": "hard",
+    "interviewType": "dsa",
+    "questionText": "Design and implement an LRU (Least Recently Used) cache with get and put operations, both O(1).",
+    "idealAnswer": "Use doubly-linked list + hash map. List maintains order (most recent at head, least at tail). Map stores key → node pointer. Get: move node to head (O(1)). Put: if exists, update and move to head; if new and at capacity, remove tail, insert at head. All operations O(1) because hash map gives O(1) node access, DLL gives O(1) insert/delete. Key: hash map must store actual node reference, not just value.",
+    "keyConcepts": ["doubly-linked list", "hash map", "O(1) operations", "eviction policy"],
+    "tags": ["LRU", "design", "linked-list", "hash-map", "cache"],
+    "followUpHints": ["LFU cache", "What about thread safety?", "LRU with TTL expiry"]
+  },
+  {
+    "id": "dsa-011",
+    "topic": "merge sort",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Implement merge sort and explain why it's preferred over quicksort in certain scenarios.",
+    "idealAnswer": "Merge sort: divide array in half recursively, merge sorted halves. O(n log n) guaranteed (best, average, worst). O(n) extra space for merging. Stable sort (equal elements maintain relative order). Preferred when: stability matters, sorting linked lists (no random access needed), sorting large data on disk (external sort). QuickSort: O(n log n) avg but O(n²) worst, in-place (O(log n) stack), faster in practice due to cache locality.",
+    "keyConcepts": ["divide and conquer", "stable sort", "O(n log n) guaranteed", "external sort"],
+    "tags": ["sorting", "divide-and-conquer", "merge-sort"],
+    "followUpHints": ["Merge k sorted arrays", "Count inversions using merge sort"]
+  },
+  {
+    "id": "dsa-012",
+    "topic": "trie",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "What is a Trie? Implement insert, search, and startsWith. When is a Trie better than a hash set?",
+    "idealAnswer": "Trie (prefix tree): each node has up to 26 (or alphabet size) children and isEnd flag. Insert: iterate characters, create node if missing, mark isEnd. Search: same but check isEnd at last char. startsWith: same but don't check isEnd. O(m) time for all ops, O(m×n) space for n words of length m. Better than hash set when: prefix search needed (autocomplete), multiple queries share prefixes, count words with prefix.",
+    "keyConcepts": ["prefix tree", "isEnd flag", "O(m) operations", "prefix sharing"],
+    "tags": ["trie", "strings", "autocomplete", "prefix"],
+    "followUpHints": ["Implement autocomplete", "Word search on a board using Trie"]
+  },
+  {
+    "id": "dsa-013",
+    "topic": "two pointers",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Given a sorted array, find all pairs that sum to a target. Use O(1) extra space.",
+    "idealAnswer": "Two-pointer technique on sorted array. Left pointer at start, right at end. If sum == target, record pair, move both pointers inward. If sum < target, move left right. If sum > target, move right left. O(n) time, O(1) space. Only works on sorted arrays. For unsorted: sort first O(n log n) + O(n) for search. Handles duplicates by skipping.",
+    "keyConcepts": ["two pointers", "sorted array prerequisite", "O(n) scan", "duplicates handling"],
+    "tags": ["two-pointers", "arrays", "sorted", "pairs"],
+    "followUpHints": ["3Sum", "4Sum", "Container with most water"]
+  },
+  {
+    "id": "dsa-014",
+    "topic": "dynamic programming",
+    "difficulty": "hard",
+    "interviewType": "dsa",
+    "questionText": "Solve the Longest Increasing Subsequence problem. Explain both the O(n²) and O(n log n) approaches.",
+    "idealAnswer": "O(n²) DP: dp[i] = length of LIS ending at index i. For each i, check all j < i where arr[j] < arr[i], take max(dp[j]+1). Answer = max(dp). O(n²) time, O(n) space. O(n log n) Patience Sorting: maintain 'piles' array — each element replaces via binary search (lower_bound) the smallest element larger than it in piles, or appends if larger than all. Length of piles = LIS length. Actual subsequence requires parent tracking.",
+    "keyConcepts": ["patience sorting", "binary search optimization", "O(n log n)", "parent tracking"],
+    "tags": ["dynamic-programming", "LIS", "binary-search", "subsequence"],
+    "followUpHints": ["Print the actual LIS", "Longest Common Subsequence"]
+  },
+  {
+    "id": "dsa-015",
+    "topic": "recursion",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Implement N-Queens: place N queens on an NxN board so no two queens attack each other.",
+    "idealAnswer": "Backtracking: place queen row by row. At each row, try each column, check if safe (no same column, no diagonal: |row1-row2| == |col1-col2|). If unsafe, try next column. If all columns fail, backtrack. O(N!) time. Optimization: use 3 sets for columns, diagonals (r-c), anti-diagonals (r+c) for O(1) safety check instead of O(N) scan. Each valid configuration is one solution.",
+    "keyConcepts": ["backtracking", "constraint propagation", "diagonal check trick", "O(N!) complexity"],
+    "tags": ["backtracking", "recursion", "N-queens"],
+    "followUpHints": ["Generate all valid parentheses", "Sudoku solver"]
+  },
+  {
+    "id": "dsa-016",
+    "topic": "graph BFS shortest path",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Find the shortest path between two nodes in an unweighted graph. Why does BFS guarantee shortest path?",
+    "idealAnswer": "BFS processes nodes level by level. Level 0: source. Level 1: all neighbors. Level 2: all neighbors of level 1. Since we visit nodes in order of increasing distance from source, the first time we reach the destination is via the shortest path. Use queue + visited set. O(V+E). For weighted graphs, use Dijkstra's. BFS guarantee only holds for uniform edge weights.",
+    "keyConcepts": ["level-by-level processing", "queue FIFO", "visited set", "unweighted assumption"],
+    "tags": ["BFS", "shortest-path", "graphs"],
+    "followUpHints": ["Dijkstra's for weighted graphs", "Bidirectional BFS"]
+  },
+  {
+    "id": "dsa-017",
+    "topic": "binary search tree",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Validate if a binary tree is a valid BST.",
+    "idealAnswer": "Naive approach (check left < root < right) is WRONG — doesn't handle ancestor constraints. Correct: pass min/max bounds down. validate(node, min, max): return false if node.val <= min or node.val >= max. Recurse left with max=node.val, right with min=node.val. O(n) time, O(h) space. Alternative: inorder traversal should be strictly increasing.",
+    "keyConcepts": ["range validation", "passing bounds down recursion", "inorder is sorted", "common BST mistake"],
+    "tags": ["BST", "validation", "recursion", "trees"],
+    "followUpHints": ["Find kth smallest in BST", "BST iterator"]
+  },
+  {
+    "id": "dsa-018",
+    "topic": "string manipulation",
+    "difficulty": "easy",
+    "interviewType": "dsa",
+    "questionText": "Check if two strings are anagrams of each other.",
+    "idealAnswer": "Approach 1: Sort both strings, compare. O(n log n). Approach 2: Count character frequencies using hash map or fixed array[26]. Sum of one string, subtract for other; all should be 0. O(n) time, O(1) space (fixed alphabet). Early exit: if lengths differ, return false immediately. Unicode consideration: hash map handles all Unicode, array[26] only lowercase ASCII.",
+    "keyConcepts": ["character frequency", "O(n) counting", "early termination", "Unicode handling"],
+    "tags": ["strings", "anagram", "hash-map"],
+    "followUpHints": ["Group anagrams together", "Find all anagram substrings"]
+  },
+  {
+    "id": "dsa-019",
+    "topic": "bit manipulation",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Find the single non-repeated number in an array where every other number appears exactly twice.",
+    "idealAnswer": "XOR trick: n XOR n = 0 for any n, and n XOR 0 = n. XOR all elements together — paired numbers cancel out, leaving the unique element. O(n) time, O(1) space. This is optimal. Extension: if two numbers appear once, XOR gives x^y; find a set bit, partition array by that bit, XOR each partition.",
+    "keyConcepts": ["XOR properties", "bit cancellation", "O(1) space", "partition by bit"],
+    "tags": ["bit-manipulation", "XOR", "arrays"],
+    "followUpHints": ["Find two non-repeating numbers", "Count set bits (Hamming weight)"]
+  },
+  {
+    "id": "dsa-020",
+    "topic": "queue",
+    "difficulty": "medium",
+    "interviewType": "dsa",
+    "questionText": "Design a circular buffer (ring buffer) with fixed capacity. Support enqueue, dequeue, isFull, and isEmpty.",
+    "idealAnswer": "Use fixed-size array with head and tail pointers. Enqueue: write at tail, tail = (tail+1) % capacity. Dequeue: read from head, head = (head+1) % capacity. Full when (tail+1) % capacity == head. Empty when head == tail. Use capacity+1 slots to distinguish full vs empty, OR use a size counter. O(1) all operations. Used in: producer-consumer, network packet buffers, audio streaming.",
+    "keyConcepts": ["modular arithmetic", "head/tail pointers", "full vs empty distinction", "O(1) operations"],
+    "tags": ["queue", "circular-buffer", "design"],
+    "followUpHints": ["Thread-safe circular buffer", "Sliding window maximum using deque"]
+  }
+]

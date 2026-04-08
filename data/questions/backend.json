@@ -1,0 +1,222 @@
+[
+  {
+    "id": "backend-001",
+    "topic": "REST API design",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "What are REST principles? How would you design a RESTful API for a blog platform?",
+    "idealAnswer": "REST principles: statelessness, client-server separation, uniform interface, cacheable responses. For a blog: GET /posts, POST /posts, GET /posts/:id, PUT/PATCH/DELETE /posts/:id. Use nouns not verbs, proper HTTP status codes (200, 201, 400, 404, 500). Versioning: /v1/posts. Pagination: cursor-based or ?page=1&limit=20.",
+    "keyConcepts": ["statelessness", "uniform interface", "HTTP methods semantics", "resource naming", "status codes", "versioning"],
+    "tags": ["REST", "API-design", "HTTP"],
+    "followUpHints": ["When would you choose GraphQL over REST?", "How do you handle nested resources?"]
+  },
+  {
+    "id": "backend-002",
+    "topic": "authentication and JWT",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "Explain JWT-based authentication. What are its advantages and security pitfalls?",
+    "idealAnswer": "JWT: header.payload.signature (Base64 encoded). Server signs with secret key; client sends in Authorization header. Stateless — no DB lookup per request. Pitfalls: can't invalidate before expiry (use short TTL + refresh tokens), store in httpOnly cookie not localStorage (XSS), prefer RS256 over HS256 for microservices.",
+    "keyConcepts": ["JWT structure", "stateless auth", "token invalidation", "refresh tokens", "httpOnly cookie"],
+    "tags": ["authentication", "JWT", "security"],
+    "followUpHints": ["How do you implement logout with JWTs?", "OAuth 2.0 flow"]
+  },
+  {
+    "id": "backend-003",
+    "topic": "database indexing",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Explain database indexing. How do B-tree indexes work? When should you NOT add an index?",
+    "idealAnswer": "B-tree index: balanced tree where leaves are sorted by key. Lookup O(log n). Write overhead: every INSERT/UPDATE/DELETE must update the index tree. Do NOT index when: high write-to-read ratio, low cardinality columns (booleans), rarely queried columns, small tables. Composite indexes: column order matters — (a,b) index helps (a) queries but not (b) alone. Covering index avoids heap lookup.",
+    "keyConcepts": ["B-tree structure", "write amplification", "composite index order", "covering index", "cardinality"],
+    "tags": ["database", "indexing", "B-tree"],
+    "followUpHints": ["Explain partial indexes", "EXPLAIN query plan analysis"]
+  },
+  {
+    "id": "backend-004",
+    "topic": "caching strategies",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Describe caching strategies: cache-aside, write-through, write-behind. When do you use each?",
+    "idealAnswer": "Cache-aside (lazy loading): app checks cache, on miss loads from DB and populates. Resilient to cache failures. Write-through: write cache AND DB simultaneously. No stale reads but wasted entries. Write-behind: write cache only, async flush to DB. Lowest latency, data loss risk on crash. Redis TTL + cache-aside is most common. Cache stampede prevention: probabilistic early expiry or locks.",
+    "keyConcepts": ["cache-aside", "write-through", "write-behind", "TTL", "stale reads", "cache stampede"],
+    "tags": ["caching", "Redis", "performance"],
+    "followUpHints": ["How do you handle cache stampede?", "Cache invalidation strategies"]
+  },
+  {
+    "id": "backend-005",
+    "topic": "rate limiting",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "How would you implement rate limiting? Compare token bucket vs sliding window algorithms.",
+    "idealAnswer": "Token bucket: N tokens added at rate R/sec. Allows bursting up to bucket size. Sliding window: track exact timestamps in last N seconds — more accurate, no boundary burst, expensive (O(r) memory). Sliding window counter: compromise using previous window count × overlap fraction. Redis implementation: sorted sets for sliding window. Return headers: X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After.",
+    "keyConcepts": ["token bucket", "sliding window", "burst handling", "Redis sorted sets", "rate limit headers"],
+    "tags": ["rate-limiting", "API", "Redis"],
+    "followUpHints": ["Distributed rate limiting across servers", "Rate limiting at API gateway"]
+  },
+  {
+    "id": "backend-006",
+    "topic": "SQL vs NoSQL",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "When would you choose NoSQL over SQL? Explain the trade-offs.",
+    "idealAnswer": "SQL: ACID, complex joins, structured schema, vertical scaling. NoSQL types: document (MongoDB), key-value (Redis), wide-column (Cassandra), graph (Neo4j). Choose NoSQL when: schema evolves rapidly, horizontal scaling needed, no complex joins, denormalization acceptable. CAP theorem: distributed SQL typically CP, Cassandra AP. NoSQL doesn't mean no schema — schema-on-read.",
+    "keyConcepts": ["ACID vs BASE", "CAP theorem", "horizontal scaling", "schema-on-read", "eventual consistency"],
+    "tags": ["SQL", "NoSQL", "databases", "scaling"],
+    "followUpHints": ["How does MongoDB handle transactions?", "Eventual consistency examples"]
+  },
+  {
+    "id": "backend-007",
+    "topic": "ACID properties",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Explain ACID properties in databases with examples of each.",
+    "idealAnswer": "Atomicity: all-or-nothing (half bank transfer never committed) — implemented via undo logs. Consistency: DB transitions between valid states, constraints always satisfied. Isolation: concurrent transactions don't interfere — levels: Read Committed, Repeatable Read, Serializable. Durability: committed data survives crashes via WAL (write-ahead log). Higher isolation = lower concurrency. MVCC enables non-blocking reads.",
+    "keyConcepts": ["atomicity", "isolation levels", "WAL durability", "MVCC", "phantom reads"],
+    "tags": ["ACID", "transactions", "isolation", "databases"],
+    "followUpHints": ["What is MVCC?", "Phantom reads vs dirty reads"]
+  },
+  {
+    "id": "backend-008",
+    "topic": "message queues",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Why use a message queue? Compare Kafka vs RabbitMQ.",
+    "idealAnswer": "Message queues decouple producers/consumers for async processing and load leveling. RabbitMQ: push-based, complex routing (exchanges), message deleted after consumption, good for task queues. Kafka: append-only log, pull-based, consumer groups, message retention + replay — best for event streaming, high throughput (millions/sec), data pipelines. At-least-once delivery common; exactly-once harder. Dead letter queues handle poison messages.",
+    "keyConcepts": ["decoupling", "Kafka log vs RabbitMQ queue", "consumer groups", "message replay", "at-least-once delivery"],
+    "tags": ["message-queue", "Kafka", "RabbitMQ", "async"],
+    "followUpHints": ["How does Kafka guarantee ordering?", "Exactly-once semantics"]
+  },
+  {
+    "id": "backend-009",
+    "topic": "WebSocket vs polling",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "Compare WebSocket, Server-Sent Events, and HTTP long polling. Which for a chat app?",
+    "idealAnswer": "Long Polling: client holds request open, high overhead. SSE: server→client one-way stream, auto-reconnect, text-based. WebSocket: full-duplex over single TCP connection, lowest latency, bidirectional. For chat: WebSocket best. Scaling: WebSocket needs sticky sessions or Redis pub/sub (Socket.io redis adapter) to work across multiple servers. SSE better for one-way notifications (activity feeds).",
+    "keyConcepts": ["full-duplex WebSocket", "SSE one-way", "sticky sessions", "Redis pub/sub for scaling"],
+    "tags": ["WebSocket", "real-time", "SSE"],
+    "followUpHints": ["Scaling WebSocket across servers", "When to prefer SSE"]
+  },
+  {
+    "id": "backend-010",
+    "topic": "microservices trade-offs",
+    "difficulty": "hard",
+    "interviewType": "backend",
+    "questionText": "What are the trade-offs of microservices vs monolith? When is microservices the wrong choice?",
+    "idealAnswer": "Monolith: simple deployment, local calls, shared memory, ACID across domains, easy debugging. Microservices: independent deployment, tech flexibility, fault isolation, independent scaling — but: network latency, distributed transactions (saga), service discovery, distributed tracing overhead. Wrong choice: small team, early product (domain not settled), no DevOps maturity. Strangler Fig pattern for incremental migration.",
+    "keyConcepts": ["independent deployment", "saga pattern", "strangler fig", "distributed tracing", "service boundaries"],
+    "tags": ["microservices", "monolith", "architecture"],
+    "followUpHints": ["How to handle distributed transactions?", "Service mesh pattern"]
+  },
+  {
+    "id": "backend-011",
+    "topic": "connection pooling",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "What is database connection pooling? How do you size a connection pool?",
+    "idealAnswer": "Connection pooling reuses DB connections instead of creating new ones per request (expensive: TCP handshake + auth). Sizing formula (thread-based): num_cores × 2 + 1. For async Node.js: 10-20 connections — event loop isn't blocking. Too large: DB overloaded. Too small: queuing. Monitor pool wait time and active/idle connections. PgBouncer (PostgreSQL) acts as proxy pool.",
+    "keyConcepts": ["connection reuse", "pool sizing formula", "async vs thread-based", "PgBouncer", "pool exhaustion"],
+    "tags": ["connection-pool", "database", "Node.js", "performance"],
+    "followUpHints": ["Connection pooling with read replicas", "Serverless connection pooling"]
+  },
+  {
+    "id": "backend-012",
+    "topic": "API versioning",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "What are the strategies for API versioning? What are the trade-offs?",
+    "idealAnswer": "URL versioning (/v1/users): visible, easy to route but breaks RESTful resource identity. Header versioning (Accept: application/vnd.v2+json): cleaner URLs, harder to test. Query param (?version=2): simplest. Deprecation strategy: sunset headers, run old version 6-12 months. Breaking vs non-breaking changes. GraphQL alternative: additive schema evolution without versioning.",
+    "keyConcepts": ["URL vs header versioning", "deprecation strategy", "sunset headers", "breaking changes"],
+    "tags": ["versioning", "API", "REST"],
+    "followUpHints": ["How to communicate deprecations?", "Backward compatibility strategies"]
+  },
+  {
+    "id": "backend-013",
+    "topic": "error handling",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "Best practices for error handling in a Node.js API. Distinguish operational vs programmer errors.",
+    "idealAnswer": "Operational errors (expected): invalid input, network timeout — handle gracefully with proper HTTP status + structured error body. Programmer errors (bugs): null reference, logic errors — crash and restart. Error response: { error, message, requestId } — always include requestId for tracing. Never expose stack traces in production. Global: process.on('unhandledRejection'). Use try/catch on async routes.",
+    "keyConcepts": ["operational vs programmer errors", "structured error response", "requestId", "unhandledRejection", "no stack traces in prod"],
+    "tags": ["error-handling", "Node.js", "API"],
+    "followUpHints": ["Circuit breaker pattern", "Distributed tracing with error context"]
+  },
+  {
+    "id": "backend-014",
+    "topic": "session management",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Compare server-side sessions vs JWT. How would you implement sessions that survive server restarts?",
+    "idealAnswer": "Server-side session: opaque session ID in cookie, session data in Redis. Can invalidate instantly. JWT: self-contained, stateless, scalable but can't revoke before expiry. Hybrid: opaque tokens with Redis lookup. Survive restarts: store sessions in Redis (not in-memory). Session fixation: regenerate ID after login. CSRF: SameSite=Strict + httpOnly + Secure cookie flags.",
+    "keyConcepts": ["opaque token vs JWT", "Redis session store", "session fixation", "CSRF", "httpOnly Secure"],
+    "tags": ["session", "authentication", "Redis", "security"],
+    "followUpHints": ["Distributed session management", "Single sign-on (SSO)"]
+  },
+  {
+    "id": "backend-015",
+    "topic": "observability",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Explain the three pillars of observability: logs, metrics, traces. How do they work together?",
+    "idealAnswer": "Logs: timestamped events (use structured JSON). Metrics: numerical measurements — use percentiles (p95, p99) NOT averages for latency. Prometheus + Grafana. Traces: track a request across services (spans with parent-child). Jaeger/Zipkin. Four Golden Signals: latency, traffic, errors, saturation. Correlation: alert on metric → find trace in logs via requestId. OpenTelemetry for vendor-neutral instrumentation.",
+    "keyConcepts": ["structured logs", "percentile vs average", "distributed tracing", "four golden signals", "requestId correlation"],
+    "tags": ["observability", "logging", "metrics", "tracing"],
+    "followUpHints": ["OpenTelemetry SDK setup", "SLO-based alerting"]
+  },
+  {
+    "id": "backend-016",
+    "topic": "database sharding",
+    "difficulty": "hard",
+    "interviewType": "backend",
+    "questionText": "Explain horizontal sharding. What are consistent hashing and resharding challenges?",
+    "idealAnswer": "Sharding splits data across multiple DBs by shard key. Range-based: easy ranges but hot spots. Hash-based: even distribution, range queries expensive. Consistent hashing: nodes and keys on a ring, key routes to nearest clockwise node — adding/removing nodes only moves 1/n data. Resharding: expensive migration, use double-write + backfill. Cross-shard joins expensive. Avoid sharding: try read replicas and caching first.",
+    "keyConcepts": ["shard key selection", "consistent hashing", "virtual nodes", "resharding", "hot spots"],
+    "tags": ["sharding", "database", "scaling", "consistent-hashing"],
+    "followUpHints": ["Cassandra ring topology", "Vitess for MySQL sharding"]
+  },
+  {
+    "id": "backend-017",
+    "topic": "Docker",
+    "difficulty": "easy",
+    "interviewType": "backend",
+    "questionText": "Explain Docker. How does it differ from VMs? Best practices for production Dockerfiles.",
+    "idealAnswer": "Docker containers share host kernel, use namespaces + cgroups for isolation. VMs: full OS per VM, GB size, slow startup. Containers: MB size, millisecond startup. Dockerfile best practices: multi-stage build (compile then copy artifact to minimal runtime), non-root user, minimal base image (alpine/distroless), .dockerignore, pin image versions, one process per container, COPY vs ADD.",
+    "keyConcepts": ["kernel sharing", "namespaces/cgroups", "multi-stage builds", "non-root user", "minimal images"],
+    "tags": ["Docker", "containers", "DevOps"],
+    "followUpHints": ["Docker Compose for development", "Kubernetes basics"]
+  },
+  {
+    "id": "backend-018",
+    "topic": "GraphQL",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "When would you choose GraphQL over REST? What are GraphQL's main challenges?",
+    "idealAnswer": "GraphQL advantages: client requests exactly what it needs (no over/under-fetching), single endpoint, self-documenting schema, multiple resources in one request. Challenges: N+1 query problem (solve with DataLoader batch loading), complex query cost analysis needed (DoS risk), no standard HTTP caching, file uploads awkward. Use GraphQL when: many clients with different data needs, mobile apps (bandwidth), rapid frontend iteration.",
+    "keyConcepts": ["N+1 problem", "DataLoader batching", "over/under-fetching", "query complexity limits"],
+    "tags": ["GraphQL", "API-design", "N+1"],
+    "followUpHints": ["How does DataLoader work?", "Schema federation"]
+  },
+  {
+    "id": "backend-019",
+    "topic": "load balancing",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "Explain load balancing algorithms and when to use sticky sessions.",
+    "idealAnswer": "Round robin: even distribution, simple. Least connections: better for variable request duration. IP hash: same client → same server (sticky). Layer 4 (TCP-level) vs Layer 7 (HTTP-aware, inspect headers/path). Sticky sessions needed for in-memory sessions — but breaks horizontal scaling. Better: externalize sessions to Redis (no stickiness needed). Health checks: active (/health probe) vs passive (detect from traffic errors).",
+    "keyConcepts": ["round-robin", "least connections", "layer 4 vs 7", "sticky sessions drawbacks", "health checks"],
+    "tags": ["load-balancing", "scaling", "nginx"],
+    "followUpHints": ["Global load balancing", "Blue-green deployment"]
+  },
+  {
+    "id": "backend-020",
+    "topic": "database transactions",
+    "difficulty": "medium",
+    "interviewType": "backend",
+    "questionText": "How would you implement an atomic bank transfer? What concurrency issues can occur?",
+    "idealAnswer": "Use DB transaction: BEGIN; check balance; debit account A; credit account B; COMMIT. Add CHECK constraint (balance >= 0). Deadlock risk: two concurrent transfers A→B and B→A — prevent with consistent lock ordering or row-level locking (SELECT FOR UPDATE). With microservices: saga pattern with compensating transactions. Always validate: different accounts, positive amount, accounts exist.",
+    "keyConcepts": ["BEGIN/COMMIT", "SELECT FOR UPDATE", "deadlock prevention", "saga pattern", "compensating transactions"],
+    "tags": ["transactions", "concurrency", "banking", "database"],
+    "followUpHints": ["Saga pattern for distributed systems", "Idempotency in payments"]
+  }
+]
