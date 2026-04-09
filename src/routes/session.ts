@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { Session } from '../models/session.model';
-import { saveSessionMeta, deleteSession } from '../memory/short-term';
+import { saveSessionMeta, deleteSession, getMessages } from '../memory/short-term';
 import { closeSession, getCandidateHistory, deleteSessionData, clearUserHistory } from '../memory/long-term';
 import { getSessionSummary } from '../services/evaluation.service';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
@@ -70,7 +70,7 @@ sessionRouter.get('/:id/summary', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params['id']!;
     const userId = req.userId!;
-    
+
     const session = await Session.findOne({ sessionId: id, userId });
     if (!session) {
       return res.status(404).json({ error: 'Session not found or unauthorized' });
@@ -81,6 +81,37 @@ sessionRouter.get('/:id/summary', async (req: AuthRequest, res: Response) => {
   } catch (err) {
     console.error('Session summary error:', err);
     return res.status(500).json({ error: 'Failed to get session summary' });
+  }
+});
+
+// GET /sessions/:id/history — Get chat history for a session
+sessionRouter.get('/:id/history', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params['id']!;
+    const userId = req.userId!;
+
+    const session = await Session.findOne({ sessionId: id, userId });
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found or unauthorized' });
+    }
+
+    // Get messages from Redis
+    const messages = await getMessages(id);
+
+    // Format messages for frontend - only include user and model turns
+    const formattedMessages = messages
+      .filter((m: any) => m.role === 'user' || m.role === 'model')
+      .map((m: any, index: number) => ({
+        id: `msg-${index}`,
+        role: m.role === 'model' ? 'agent' : 'user',
+        content: m.parts?.map((p: any) => p.text).join(' ') || '',
+        timestamp: new Date(), // Redis doesn't store timestamps, use current
+      }));
+
+    return res.json({ messages: formattedMessages });
+  } catch (err) {
+    console.error('Get chat history error:', err);
+    return res.status(500).json({ error: 'Failed to get chat history' });
   }
 });
 

@@ -51,15 +51,34 @@ export async function agentLoop(
   while (iterationCount < MAX_LOOP_ITERATIONS) {
     iterationCount++;
 
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: history,
-      config: {
-        systemInstruction,
-        tools: [{ functionDeclarations: toolDeclarations }],
-        toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
-      },
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: MODEL,
+        contents: history,
+        config: {
+          systemInstruction,
+          tools: [{ functionDeclarations: toolDeclarations }],
+          toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
+        },
+      });
+    } catch (err) {
+      // Check for connection/timeout errors
+      if (err instanceof Error && (
+        err.message.includes('fetch failed') ||
+        err.message.includes('ConnectTimeoutError') ||
+        err.message.includes('ETIMEDOUT') ||
+        err.message.includes('ECONNREFUSED')
+      )) {
+        throw new Error(
+          'Unable to connect to Google AI API. Please check:\n' +
+          '1. Your internet connection is active\n' +
+          '2. GOOGLE_API_KEY in .env is valid (get one at https://aistudio.google.com/app/apikey)\n' +
+          '3. No VPN/firewall is blocking generativelanguage.googleapis.com'
+        );
+      }
+      throw err;
+    }
 
     const candidate = response.candidates?.[0];
     if (!candidate?.content) {

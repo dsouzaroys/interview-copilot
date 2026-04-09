@@ -385,14 +385,49 @@ function Analytics({ sessionId }: { sessionId: string }) {
 // ─── Chat View ────────────────────────────────────────────────────────────────
 
 function ChatView({ session }: { session: Session }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // Try to load messages from localStorage
+    const saved = localStorage.getItem(`interview_messages_${session.sessionId}`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+    }
+    return [];
+  });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Persist messages to localStorage whenever they change
   useEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length > 0) {
+      localStorage.setItem(`interview_messages_${session.sessionId}`, JSON.stringify(messages));
+    }
+  }, [messages, session.sessionId]);
+
+  // Fetch chat history from backend on mount
+  useEffect(() => {
+    if (!historyLoaded && session.sessionId) {
+      apiClient.getSessionHistory(session.sessionId)
+        .then(backendMessages => {
+          if (backendMessages.length > 0) {
+            // Merge backend messages with localStorage (backend takes precedence)
+            const merged = [...backendMessages];
+            setMessages(merged);
+          }
+          setHistoryLoaded(true);
+        })
+        .catch(err => {
+          console.error('Failed to load chat history:', err);
+          setHistoryLoaded(true);
+        });
+    }
+  }, [session.sessionId, historyLoaded]);
+
+  useEffect(() => {
+    if (messages.length === 0 && historyLoaded) {
       setMessages([
         {
           id: 'welcome',
@@ -402,7 +437,7 @@ function ChatView({ session }: { session: Session }) {
         },
       ]);
     }
-  }, [session.sessionId]);
+  }, [session.sessionId, historyLoaded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -531,10 +566,22 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSession, setActiveSession] = useState<Session | null>(null);
+  const [activeSession, setActiveSession] = useState<Session | null>(() => {
+    const saved = localStorage.getItem('interview_active_session');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [view, setView] = useState<View>('chat');
   const [showModal, setShowModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Persist active session to localStorage
+  useEffect(() => {
+    if (activeSession) {
+      localStorage.setItem('interview_active_session', JSON.stringify(activeSession));
+    } else {
+      localStorage.removeItem('interview_active_session');
+    }
+  }, [activeSession]);
 
   useEffect(() => {
     if (user) {
@@ -576,6 +623,8 @@ export default function App() {
       await apiClient.deleteSession(id);
       setSessions((prev) => prev.filter((s) => s.sessionId !== id));
       if (activeSession?.sessionId === id) setActiveSession(null);
+      // Clear localStorage for this session
+      localStorage.removeItem(`interview_messages_${id}`);
     } catch {
       alert('Failed to delete session');
     }
@@ -585,6 +634,10 @@ export default function App() {
     if (!window.confirm('Are you sure you want to clear ALL interview history? This cannot be undone.')) return;
     try {
       await apiClient.clearHistory();
+      // Clear all session messages from localStorage
+      sessions.forEach(s => {
+        localStorage.removeItem(`interview_messages_${s.sessionId}`);
+      });
       setSessions([]);
       setActiveSession(null);
     } catch {

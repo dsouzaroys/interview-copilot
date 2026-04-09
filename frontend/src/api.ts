@@ -93,6 +93,11 @@ export const apiClient = {
     return data;
   },
 
+  getSessionHistory: async (sessionId: string) => {
+    const { data } = await api.get<{ messages: Array<{ id: string; role: 'user' | 'agent'; content: string; timestamp: string }> }>(`/sessions/${sessionId}/history`);
+    return data.messages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+  },
+
   endSession: async (sessionId: string) => {
     const { data } = await api.post<{ message: string; summary: SessionSummary }>(
       `/sessions/${sessionId}/end`
