@@ -610,10 +610,10 @@ export default function App() {
         {activeSession && (
           <nav className="topbar-nav">
             <button className={view === 'chat' ? 'active' : ''} onClick={() => setView('chat')}>
-              💬 Interview
+              <span>💬 Interview</span>
             </button>
             <button className={view === 'analytics' ? 'active' : ''} onClick={() => setView('analytics')}>
-              📊 Analytics
+              <span>📊 Analytics</span>
             </button>
           </nav>
         )}
@@ -630,10 +630,10 @@ export default function App() {
       {activeSession && (
         <nav className="mobile-floating-nav">
           <button className={view === 'chat' ? 'active' : ''} onClick={() => setView('chat')}>
-            💬 Interview
+            <span>💬 Interview</span>
           </button>
           <button className={view === 'analytics' ? 'active' : ''} onClick={() => setView('analytics')}>
-            📊 Analytics
+            <span>📊 Analytics</span>
           </button>
         </nav>
       )}
@@ -694,7 +694,7 @@ export default function App() {
       <main className="main">
         {!activeSession ? (
           <div className="empty-state">
-            <div className="empty-glow">🧠</div>
+            <div className="empty-glow"><span>🧠</span></div>
             <h1 className="empty-title">Welcome, {user.name}</h1>
             <p className="empty-subtitle">
               Ready to level up? Start a session and I'll adapt the questions to your current skill level.
