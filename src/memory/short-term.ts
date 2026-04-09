@@ -16,6 +16,9 @@ export interface SessionMeta {
   askedQuestionIds: string[];
   startedAt: string;
   userId: string;
+  // Track current question state
+  lastQuestionId?: string;
+  lastQuestionType?: 'theory' | 'coding';
 }
 
 // ─── Keys ─────────────────────────────────────────────────────────────────────

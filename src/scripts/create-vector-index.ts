@@ -37,6 +37,10 @@ async function createVectorIndex() {
           type: 'filter',
           path: 'tags',
         },
+        {
+          type: 'filter',
+          path: 'questionType',
+        },
       ],
     },
   };
@@ -61,7 +65,7 @@ async function createVectorIndex() {
     console.log(`  Name:       question_vector_index`);
     console.log(`  Dimensions: ${EMBEDDING_DIMENSIONS} (Google text-embedding-001)`);
     console.log(`  Similarity: cosine`);
-    console.log(`  Filters:    interviewType, difficulty, tags`);
+    console.log(`  Filters:    interviewType, difficulty, questionType, tags`);
     console.log('');
     console.log('⏳ Note: Index may take 1-2 minutes to become active on Atlas.');
     console.log('   You can monitor status in Atlas UI → Search → Indexes');

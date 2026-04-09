@@ -114,4 +114,49 @@ export const apiClient = {
     const { data } = await api.delete('/sessions');
     return data;
   },
+
+  // ─── Code Execution ─────────────────────────────────────────────────────────
+  submitCode: async (sessionId: string, payload: {
+    questionId: string;
+    code: string;
+    language: string;
+    testCases?: Array<{ input: string; expected_output: string }>;
+  }) => {
+    const { data } = await api.post<{
+      success: boolean;
+      all_passed?: boolean;
+      summary?: string;
+      test_results?: Array<{
+        test_case: number;
+        passed: boolean;
+        input: string;
+        expected_output: string;
+        actual_output: string;
+        error?: string;
+      }>;
+      output?: string;
+      error?: string;
+    }>(`/code/${sessionId}/execute`, payload);
+    return data;
+  },
+
+  analyzeSolution: async (sessionId: string, payload: {
+    questionId: string;
+    questionText: string;
+    submittedCode: string;
+    language: string;
+    testResults: string;
+  }) => {
+    const { data } = await api.post<{
+      correctness: string;
+      correctness_score: number;
+      time_complexity: string;
+      space_complexity: string;
+      code_quality: string;
+      strengths: string[];
+      improvements: string[];
+      feedback: string;
+    }>(`/code/${sessionId}/analyze`, payload);
+    return data;
+  },
 };

@@ -6,10 +6,11 @@ import { FunctionDeclaration, Type } from '@google/genai';
 export const toolDeclarations: FunctionDeclaration[] = [
   {
     name: 'get_next_question',
-    description: `Fetches the next interview question from the curated knowledge base.
+    description: `Fetches the next interview question from the knowledge base or generates a fresh one.
 
 ALWAYS use this tool when you need to ask a new question. NEVER invent questions yourself.
-Semantically matches questions to weak areas. Avoids questions already asked this session.`,
+Can return theory questions (discussion-based) or coding questions (with test cases).
+For DSA interviews, coding questions are preferred. For Backend/System Design, theory questions are preferred.`,
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -31,8 +32,109 @@ Semantically matches questions to weak areas. Avoids questions already asked thi
           items: { type: Type.STRING },
           description: 'Question IDs already asked this session — prevents repetition',
         },
+        question_type: {
+          type: Type.STRING,
+          description: 'Type of question: theory | coding. For DSA, use coding. For Backend/System Design, use theory.',
+        },
       },
-      required: ['interview_type', 'difficulty', 'weak_areas', 'exclude_question_ids'],
+      required: ['interview_type', 'difficulty', 'weak_areas', 'exclude_question_ids', 'question_type'],
+    },
+  },
+  {
+    name: 'generate_fresh_question',
+    description: `Generates a brand new interview question using AI. Use this when the knowledge base is exhausted or you want the latest questions.
+
+The question is verified by AI before being presented. For coding questions, includes test cases and starter code.`,
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        interview_type: {
+          type: Type.STRING,
+          description: 'The type of interview: dsa | backend | system-design',
+        },
+        difficulty: {
+          type: Type.STRING,
+          description: 'Difficulty level: easy | medium | hard',
+        },
+        question_type: {
+          type: Type.STRING,
+          description: 'Type of question: theory | coding',
+        },
+        topic: {
+          type: Type.STRING,
+          description: 'Optional specific topic to focus on',
+        },
+      },
+      required: ['interview_type', 'difficulty', 'question_type'],
+    },
+  },
+  {
+    name: 'execute_code',
+    description: `Executes code submitted by the candidate in a sandboxed environment.
+
+Use this when a candidate submits code for a coding question. Runs the code against test cases and returns results.
+Supports JavaScript, TypeScript, Python, Java, and C++.`,
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        question_id: {
+          type: Type.STRING,
+          description: 'The ID of the coding question being answered',
+        },
+        code: {
+          type: Type.STRING,
+          description: 'The code submitted by the candidate',
+        },
+        language: {
+          type: Type.STRING,
+          description: 'Programming language: javascript | typescript | python | java | cpp',
+        },
+        test_cases: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              input: { type: Type.STRING },
+              expected_output: { type: Type.STRING },
+            },
+          },
+          description: 'Test cases to run against the code',
+        },
+      },
+      required: ['question_id', 'code', 'language'],
+    },
+  },
+  {
+    name: 'analyze_solution',
+    description: `Analyzes a coding solution for correctness, efficiency, and code quality.
+
+Use this after code execution to provide detailed feedback on the solution approach, time/space complexity, and code style.
+This is for detailed code review, not just test case results.`,
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        question_id: {
+          type: Type.STRING,
+          description: 'The ID of the coding question',
+        },
+        question_text: {
+          type: Type.STRING,
+          description: 'The problem statement',
+        },
+        submitted_code: {
+          type: Type.STRING,
+          description: "The candidate's submitted code",
+        },
+        language: {
+          type: Type.STRING,
+          description: 'Programming language used',
+        },
+        test_results: {
+          type: Type.STRING,
+          description: 'JSON string of test case results',
+        },
+      },
+      required: ['question_id', 'question_text', 'submitted_code', 'language', 'test_results'],
     },
   },
   {

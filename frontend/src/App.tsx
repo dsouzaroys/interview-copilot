@@ -384,6 +384,15 @@ function Analytics({ sessionId }: { sessionId: string }) {
 
 // ─── Chat View ────────────────────────────────────────────────────────────────
 
+interface CodeEditorState {
+  isActive: boolean;
+  questionId?: string;
+  language: 'javascript' | 'python' | 'java' | 'cpp' | 'typescript';
+  code: string;
+  supportedLanguages?: string[];
+  testCases?: Array<{ input: string; expected_output: string; is_hidden?: boolean }>;
+}
+
 function ChatView({ session }: { session: Session }) {
   const [messages, setMessages] = useState<Message[]>(() => {
     // Try to load messages from localStorage
@@ -399,6 +408,26 @@ function ChatView({ session }: { session: Session }) {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Code editor state for coding questions
+  const [codeEditor, setCodeEditor] = useState<CodeEditorState>({
+    isActive: false,
+    language: 'javascript',
+    code: '',
+  });
+  const [submittingCode, setSubmittingCode] = useState(false);
+  const [testResults, setTestResults] = useState<{
+    all_passed?: boolean;
+    summary?: string;
+    test_results?: Array<{
+      test_case: number;
+      passed: boolean;
+      input: string;
+      expected_output: string;
+      actual_output: string;
+      error?: string;
+    }>;
+  } | null>(null);
 
   // Persist messages to localStorage whenever they change
   useEffect(() => {
@@ -447,6 +476,14 @@ function ChatView({ session }: { session: Session }) {
     const text = input.trim();
     if (!text || loading) return;
 
+    // Check if user wants to submit code
+    const isCodeSubmission = text.toLowerCase().includes('submit') && codeEditor.isActive;
+    
+    if (isCodeSubmission && codeEditor.code) {
+      await handleCodeSubmit();
+      return;
+    }
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -467,6 +504,28 @@ function ChatView({ session }: { session: Session }) {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, agentMsg]);
+      
+      // Check if agent response contains coding question indicators
+      if (response.reply.includes('starter code') || 
+          response.reply.includes('```') && response.reply.includes('TODO') ||
+          response.reply.includes('function solve') ||
+          response.reply.includes('def solve')) {
+        // Extract code snippet and activate code editor
+        const codeMatch = response.reply.match(/```(?:javascript|python|java|cpp|typescript)?\n([\s\S]*?)```/);
+        if (codeMatch) {
+          const detectedLang = detectLanguage(response.reply);
+          setCodeEditor(prev => ({
+            ...prev,
+            isActive: true,
+            code: codeMatch[1] || '',
+            language: detectedLang,
+          }));
+        }
+      } else if (response.reply.includes('Good job') || response.reply.includes('Next question')) {
+        // Deactivate code editor for theory questions or after code submission
+        setCodeEditor(prev => ({ ...prev, isActive: false }));
+        setTestResults(null);
+      }
     } catch (err) {
       const errMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -479,7 +538,79 @@ function ChatView({ session }: { session: Session }) {
       setLoading(false);
       textareaRef.current?.focus();
     }
-  }, [input, loading, session.sessionId]);
+  }, [input, loading, session.sessionId, codeEditor]);
+
+  // Helper to detect language from message
+  const detectLanguage = (message: string): CodeEditorState['language'] => {
+    if (message.includes('```python') || message.includes('def solve')) return 'python';
+    if (message.includes('```java') || message.includes('public class')) return 'java';
+    if (message.includes('```cpp') || message.includes('#include')) return 'cpp';
+    if (message.includes('```typescript')) return 'typescript';
+    return 'javascript';
+  };
+
+  // Handle code submission
+  const handleCodeSubmit = async () => {
+    if (!codeEditor.code || !codeEditor.questionId) return;
+    
+    setSubmittingCode(true);
+    
+    try {
+      // First, submit code for execution
+      const executionResult = await apiClient.submitCode(session.sessionId, {
+        questionId: codeEditor.questionId,
+        code: codeEditor.code,
+        language: codeEditor.language,
+        testCases: codeEditor.testCases,
+      });
+      
+      setTestResults(executionResult);
+      
+      // Show test results in chat
+      const testResultMsg: Message = {
+        id: Date.now().toString(),
+        role: 'agent',
+        content: `**${executionResult.summary || 'Code Executed'}**\n\n${executionResult.test_results?.map((r, i) => 
+          `Test ${i + 1}: ${r.passed ? '✅ Passed' : '❌ Failed'}\n` +
+          `Input: \`${r.input}\`\n` +
+          `Expected: \`${r.expected_output}\`\n` +
+          `Got: \`${r.actual_output}\`${r.error ? '\nError: ' + r.error : ''}`
+        ).join('\n\n') || executionResult.output || ''}`,
+        timestamp: new Date(),
+      };
+      
+      setMessages((prev) => [...prev, testResultMsg]);
+      
+      // Send code submission message to agent
+      const response = await apiClient.sendMessage(
+        session.sessionId,
+        `[CODE SUBMISSION]\nLanguage: ${codeEditor.language}\n\n${codeEditor.code}\n\n[Test Results]\n${JSON.stringify(executionResult, null, 2)}`
+      );
+      
+      const agentMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'agent',
+        content: response.reply,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, agentMsg]);
+      
+      // Deactivate code editor after submission
+      setCodeEditor(prev => ({ ...prev, isActive: false }));
+      setTestResults(null);
+    } catch (err) {
+      console.error('Code submission error:', err);
+      const errMsg: Message = {
+        id: Date.now().toString(),
+        role: 'agent',
+        content: '⚠️ Code execution failed. Please check your code and try again.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setSubmittingCode(false);
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -537,12 +668,129 @@ function ChatView({ session }: { session: Session }) {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Code Editor for Coding Questions */}
+      {codeEditor.isActive && (
+        <div className="code-editor-panel" style={{
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          padding: '12px 16px',
+          background: 'rgba(0,0,0,0.3)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.85rem', color: '#a78bfa' }}>💻 Code Editor</span>
+            <select
+              value={codeEditor.language}
+              onChange={(e) => setCodeEditor(prev => ({ ...prev, language: e.target.value as CodeEditorState['language'] }))}
+              style={{
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                color: '#f0f0f5',
+                fontSize: '0.8rem',
+              }}
+            >
+              <option value="javascript">JavaScript</option>
+              <option value="typescript">TypeScript</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="cpp">C++</option>
+            </select>
+            <span style={{ fontSize: '0.75rem', color: '#8b8fa8', marginLeft: 'auto' }}>
+              Type &quot;submit&quot; in chat to run your code
+            </span>
+          </div>
+          <textarea
+            value={codeEditor.code}
+            onChange={(e) => setCodeEditor(prev => ({ ...prev, code: e.target.value }))}
+            style={{
+              width: '100%',
+              minHeight: '150px',
+              background: '#1a1d26',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              padding: '12px',
+              color: '#f0f0f5',
+              fontFamily: 'monospace',
+              fontSize: '0.9rem',
+              resize: 'vertical',
+            }}
+            placeholder="Write your solution here..."
+            spellCheck={false}
+          />
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button
+              onClick={handleCodeSubmit}
+              disabled={submittingCode || !codeEditor.code.trim()}
+              style={{
+                padding: '8px 16px',
+                background: submittingCode ? '#4a4d5a' : 'linear-gradient(135deg, #6c63ff, #a78bfa)',
+                border: 'none',
+                borderRadius: '6px',
+                color: '#fff',
+                fontSize: '0.85rem',
+                cursor: submittingCode || !codeEditor.code.trim() ? 'not-allowed' : 'pointer',
+                opacity: submittingCode || !codeEditor.code.trim() ? 0.6 : 1,
+              }}
+            >
+              {submittingCode ? '⏳ Running...' : '▶ Run Code'}
+            </button>
+            <button
+              onClick={() => {
+                setCodeEditor(prev => ({ ...prev, isActive: false }));
+                setTestResults(null);
+              }}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                color: '#8b8fa8',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+              }}
+            >
+              ✕ Close Editor
+            </button>
+          </div>
+          
+          {/* Test Results */}
+          {testResults && testResults.test_results && testResults.test_results.length > 0 && (
+            <div style={{
+              marginTop: '12px',
+              padding: '12px',
+              background: testResults.all_passed ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+              border: `1px solid ${testResults.all_passed ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+              borderRadius: '8px',
+            }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: testResults.all_passed ? '#4ade80' : '#f87171' }}>
+                {testResults.summary}
+              </div>
+              {testResults.test_results.map((r, i) => (
+                <div key={i} style={{ fontSize: '0.8rem', marginBottom: '8px', color: '#c0c0d0' }}>
+                  <span style={{ color: r.passed ? '#4ade80' : '#f87171' }}>
+                    {r.passed ? '✅' : '❌'} Test {r.test_case}
+                  </span>
+                  {!r.passed && (
+                    <div style={{ marginLeft: '20px', marginTop: '4px' }}>
+                      <div>Input: <code>{r.input}</code></div>
+                      <div>Expected: <code style={{ color: '#4ade80' }}>{r.expected_output}</code></div>
+                      <div>Got: <code style={{ color: '#f87171' }}>{r.actual_output}</code></div>
+                      {r.error && <div style={{ color: '#f87171' }}>Error: {r.error}</div>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="chat-input-area">
         <div className="chat-input-form">
           <textarea
             ref={textareaRef}
             className="chat-textarea"
-            placeholder="Type your answer..."
+            placeholder={codeEditor.isActive ? 'Type "submit" to submit your code, or chat normally...' : 'Type your answer...'}
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}

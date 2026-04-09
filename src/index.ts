@@ -6,6 +6,7 @@ import { connectRedis } from './config/redis';
 import { sessionRouter } from './routes/session';
 import { interviewRouter } from './routes/interview';
 import { authRouter } from './routes/auth';
+import { codeRouter } from './routes/code';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use((req, _res, next) => {
 app.use('/auth', authRouter);
 app.use('/sessions', sessionRouter);
 app.use('/sessions', interviewRouter);
+app.use('/code', codeRouter);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -56,9 +58,12 @@ async function bootstrap() {
     console.log('  GET    /sessions                    → [Auth] List sessions');
     console.log('  DELETE /sessions/:id                → [Auth] Delete session');
     console.log('  DELETE /sessions                    → [Auth] Clear history');
+    console.log('  POST   /code/:id/execute            → [Auth] Execute code');
+    console.log('  POST   /code/:id/analyze            → [Auth] Analyze solution');
     console.log('');
     console.log('💡 Run `npm run seed` to populate knowledge base');
     console.log('💡 Run `npm run setup-index` to create vector index');
+    console.log('💡 Coding questions now supported for DSA interviews!');
     console.log('═══════════════════════════════════');
   });
 }

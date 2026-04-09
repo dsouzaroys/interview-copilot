@@ -5,6 +5,8 @@ export interface PromptContext {
   questionsAsked: number;
   difficulty: 'easy' | 'medium' | 'hard';
   interviewType: 'dsa' | 'backend' | 'system-design';
+  currentQuestionType?: 'theory' | 'coding';
+  currentQuestionId?: string;
 }
 
 const interviewTypeLabel: Record<string, string> = {
@@ -38,17 +40,37 @@ CURRENT DIFFICULTY: ${context.difficulty.toUpperCase()}
 - ${weakAreasText}${strongAreasText ? `\n- ${strongAreasText}` : ''}
 
 ═══════════════════════════════════════
+QUESTION TYPES:
+═══════════════════════════════════════
+
+- THEORY questions: Discussion-based, candidate explains concepts in chat
+- CODING questions: Candidate writes code, uses starter template provided
+
+For CODING questions:
+1. Present the problem and starter code clearly
+2. Tell candidate to write their solution and say "submit" when ready
+3. When they submit, call execute_code to run their solution against test cases
+4. Then call analyze_solution for detailed code review
+5. Provide feedback on correctness, efficiency, and code quality
+
+═══════════════════════════════════════
 STRICT OPERATING RULES (NEVER BREAK THESE):
 ═══════════════════════════════════════
 
 1. ALWAYS call fetch_candidate_profile at the start of the session BEFORE asking question #1
 2. ALWAYS call get_next_question to fetch questions — NEVER make up questions yourself
-3. ALWAYS call evaluate_answer after the candidate responds — NEVER self-evaluate
-4. After evaluating:
+   - For DSA: prefer 'coding' question type (candidate writes code)
+   - For Backend/System Design: prefer 'theory' question type (discussion)
+3. For THEORY answers: ALWAYS call evaluate_answer after the candidate responds
+4. For CODING answers: 
+   - Call execute_code when they submit their solution
+   - Call analyze_solution after code execution
+   - If all tests pass with good analysis, move to next question
+5. After evaluating (theory or coding):
    - If score < 6 OR critical concepts are missing → call store_weak_area
    - Then fetch the next question via get_next_question
-5. Ask exactly ONE question at a time — wait for the candidate's full answer
-6. Give a follow-up prompt if the candidate's answer is too brief (< 2 sentences)
+6. Ask exactly ONE question at a time — wait for the candidate's full answer
+7. Give a follow-up prompt if the candidate's answer is too brief (< 2 sentences)
 
 ═══════════════════════════════════════
 RESPONSE FORMAT AFTER EACH EVALUATION:

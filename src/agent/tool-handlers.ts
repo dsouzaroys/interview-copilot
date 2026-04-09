@@ -4,6 +4,8 @@ import { EVALUATION_SYSTEM_PROMPT } from './prompts';
 import { fetchQuestion, fetchNextQuestion } from '../rag/retriever';
 import { persistEvaluation, getCandidateHistory, upsertWeakArea } from '../memory/long-term';
 import { getSessionMeta, updateSessionMeta } from '../memory/short-term';
+import { generateFreshQuestion, getOrGenerateQuestion } from '../services/question-generator.service';
+import { executeCode, runTestCases } from '../services/code-execution.service';
 
 const ai = new GoogleGenAI({ apiKey: env.GOOGLE_API_KEY });
 
@@ -32,6 +34,12 @@ export async function dispatchTool(
   switch (toolName) {
     case 'get_next_question':
       return handleGetNextQuestion(sessionId, input);
+    case 'generate_fresh_question':
+      return handleGenerateFreshQuestion(sessionId, input);
+    case 'execute_code':
+      return handleExecuteCode(sessionId, input);
+    case 'analyze_solution':
+      return handleAnalyzeSolution(sessionId, input);
     case 'evaluate_answer':
       return handleEvaluateAnswer(sessionId, input);
     case 'store_weak_area':
@@ -74,17 +82,36 @@ async function handleGetNextQuestion(
   await updateSessionMeta(sessionId, {
     askedQuestionIds: [...askedIds, question.questionId],
     questionsAsked: (meta?.questionsAsked ?? 0) + 1,
+    lastQuestionId: question.questionId,
+    lastQuestionType: question.questionType,
   });
 
-  return {
+  const result: Record<string, unknown> = {
     question_id: question.questionId,
     question_text: question.questionText,
     topic: question.topic,
     difficulty: question.difficulty,
     interview_type: question.interviewType,
+    question_type: question.questionType,
     key_concepts: question.keyConcepts,
     follow_up_hints: question.followUpHints,
+    generated: question.tags?.includes('generated') ?? false,
   };
+
+  // Include coding-specific fields
+  if (question.questionType === 'coding') {
+    result.starter_code = question.starterCode;
+    result.supported_languages = question.supportedLanguages;
+    result.test_cases = question.testCases?.map(tc => ({
+      input: tc.input,
+      expected_output: tc.expectedOutput,
+      is_hidden: tc.isHidden,
+    }));
+    result.time_limit_seconds = question.timeLimitSeconds;
+    result.memory_limit_mb = question.memoryLimitMB;
+  }
+
+  return result;
 }
 
 // ─── Tool: evaluate_answer ───────────────────────────────────────────────────
@@ -236,6 +263,213 @@ async function handleFetchCandidateProfile(
       total_questions: 0,
       score_trend: [],
       current_session: { questions_asked: 0, scores_this_session: [], difficulty: 'easy' },
+    };
+  }
+}
+
+// ─── Tool: generate_fresh_question ───────────────────────────────────────────
+
+async function handleGenerateFreshQuestion(
+  _sessionId: string,
+  input: Record<string, unknown>
+): Promise<unknown> {
+  const interviewType = input['interview_type'] as 'dsa' | 'backend' | 'system-design';
+  const difficulty = input['difficulty'] as 'easy' | 'medium' | 'hard';
+  const questionType = input['question_type'] as 'theory' | 'coding';
+  const topic = input['topic'] as string | undefined;
+
+  try {
+    const question = await getOrGenerateQuestion({
+      interviewType,
+      difficulty,
+      questionType,
+      topic,
+    });
+
+    const result: Record<string, unknown> = {
+      question_id: question.questionId,
+      question_text: question.questionText,
+      topic: question.topic,
+      difficulty: question.difficulty,
+      interview_type: question.interviewType,
+      question_type: question.questionType,
+      key_concepts: question.keyConcepts,
+      follow_up_hints: question.followUpHints,
+      generated: true,
+      verified: !!question.verifiedAt,
+    };
+
+    // Include coding-specific fields
+    if (question.questionType === 'coding') {
+      result.starter_code = question.starterCode;
+      result.supported_languages = question.supportedLanguages;
+      result.test_cases = question.testCases?.map(tc => ({
+        input: tc.input,
+        expected_output: tc.expectedOutput,
+        is_hidden: tc.isHidden,
+      }));
+      result.time_limit_seconds = question.timeLimitSeconds;
+      result.memory_limit_mb = question.memoryLimitMB;
+    }
+
+    return result;
+  } catch (err) {
+    console.error('Failed to generate fresh question:', err);
+    return {
+      error: 'Failed to generate question',
+      detail: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+}
+
+// ─── Tool: execute_code ──────────────────────────────────────────────────────
+
+async function handleExecuteCode(
+  sessionId: string,
+  input: Record<string, unknown>
+): Promise<unknown> {
+  const questionId = input['question_id'] as string;
+  const code = input['code'] as string;
+  const language = input['language'] as 'javascript' | 'python' | 'java' | 'cpp' | 'typescript';
+  const testCases = (input['test_cases'] as Array<{ input: string; expected_output: string }>) ?? [];
+
+  if (!code || !language) {
+    return { error: 'Code and language are required' };
+  }
+
+  try {
+    // If test cases provided in input, use them
+    let casesToRun = testCases.map(tc => ({
+      input: tc.input,
+      expectedOutput: tc.expected_output,
+    }));
+
+    // Otherwise fetch from the question
+    if (casesToRun.length === 0) {
+      const question = await fetchQuestion(questionId);
+      if (question && question.testCases) {
+        casesToRun = question.testCases.map(tc => ({
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+        }));
+      }
+    }
+
+    if (casesToRun.length === 0) {
+      // Run without test cases (just check if code executes)
+      const result = await executeCode({
+        code,
+        language,
+        timeoutSeconds: 5,
+      });
+
+      return {
+        success: result.success,
+        output: result.output,
+        error: result.error,
+        execution_time_ms: result.executionTimeMs,
+        timed_out: result.timedOut,
+        test_results: [],
+      };
+    }
+
+    // Run against test cases
+    const testResults = await runTestCases(code, language, casesToRun);
+
+    return {
+      success: testResults.success,
+      all_passed: testResults.allPassed,
+      summary: testResults.summary,
+      total_execution_time_ms: testResults.totalExecutionTimeMs,
+      test_results: testResults.results.map(r => ({
+        test_case: r.testCase,
+        passed: r.passed,
+        input: r.input,
+        expected_output: r.expectedOutput,
+        actual_output: r.actualOutput,
+        error: r.error,
+        execution_time_ms: r.executionTimeMs,
+      })),
+    };
+  } catch (err) {
+    console.error('Code execution error:', err);
+    return {
+      error: 'Code execution failed',
+      detail: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+}
+
+// ─── Tool: analyze_solution ──────────────────────────────────────────────────
+
+async function handleAnalyzeSolution(
+  _sessionId: string,
+  input: Record<string, unknown>
+): Promise<unknown> {
+  const questionText = input['question_text'] as string;
+  const submittedCode = input['submitted_code'] as string;
+  const language = input['language'] as string;
+  const testResults = input['test_results'] as string;
+
+  const analysisPrompt = `You are an expert code reviewer and technical interviewer. Analyze this coding solution:
+
+PROBLEM: ${questionText}
+
+SUBMITTED CODE (${language}):
+\`\`\`
+${submittedCode}
+\`\`\`
+
+TEST RESULTS: ${testResults}
+
+Provide a detailed analysis covering:
+1. Correctness - Does it solve the problem?
+2. Algorithm efficiency (time/space complexity)
+3. Code quality and style
+4. Edge case handling
+5. Areas for improvement
+
+Respond with ONLY valid JSON:
+{
+  "correctness": "excellent|good|partial|incorrect",
+  "correctness_score": 0-10,
+  "time_complexity": "e.g., O(n log n)",
+  "space_complexity": "e.g., O(n)",
+  "code_quality": "excellent|good|fair|poor",
+  "strengths": ["specific strength 1", "strength 2"],
+  "improvements": ["specific suggestion 1", "suggestion 2"],
+  "feedback": "Detailed feedback for the candidate"
+}`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: analysisPrompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      },
+    });
+
+    const rawText = result.text ?? '';
+    try {
+      const analysis = JSON.parse(rawText);
+      return {
+        ...analysis,
+        analyzed: true,
+      };
+    } catch {
+      return {
+        error: 'Failed to parse analysis',
+        raw_response: rawText.slice(0, 500),
+        analyzed: false,
+      };
+    }
+  } catch (err) {
+    console.error('Solution analysis error:', err);
+    return {
+      error: 'Analysis failed',
+      detail: err instanceof Error ? err.message : 'Unknown error',
     };
   }
 }

@@ -1,11 +1,13 @@
 import { Question, IQuestion } from '../models/question.model';
 import { embedQuery } from './embeddings';
+import { getOrGenerateQuestion } from '../services/question-generator.service';
 
 export interface FetchQuestionOptions {
   interviewType: 'dsa' | 'backend' | 'system-design';
   difficulty: 'easy' | 'medium' | 'hard';
   weakAreas: string[];
   excludeIds: string[];
+  questionType?: 'theory' | 'coding';
 }
 
 // ─── Fetch Single Question by ID ──────────────────────────────────────────────
@@ -19,7 +21,7 @@ export async function fetchQuestion(questionId: string): Promise<IQuestion | nul
 export async function fetchNextQuestion(
   options: FetchQuestionOptions
 ): Promise<IQuestion | null> {
-  const { interviewType, difficulty, weakAreas, excludeIds } = options;
+  const { interviewType, difficulty, weakAreas, excludeIds, questionType = 'theory' } = options;
 
   // Build query text from weak areas for semantic matching
   const queryText =
@@ -27,60 +29,78 @@ export async function fetchNextQuestion(
       ? `Technical interview question about ${weakAreas.slice(0, 3).join(', ')}`
       : `${interviewType} interview question ${difficulty} difficulty`;
 
-  // Try vector search first
-  try {
-    const queryEmbedding = await embedQuery(queryText);
+  // Try vector search first (only for pre-seeded/static questions)
+  if (questionType === 'theory') {
+    try {
+      const queryEmbedding = await embedQuery(queryText);
 
-    const pipeline = [
-      {
-        $vectorSearch: {
-          index: 'question_vector_index',
-          queryVector: queryEmbedding,
-          path: 'embedding',
-          numCandidates: 50,
-          limit: 10,
-          filter: {
-            interviewType,
-            difficulty,
+      const pipeline = [
+        {
+          $vectorSearch: {
+            index: 'question_vector_index',
+            queryVector: queryEmbedding,
+            path: 'embedding',
+            numCandidates: 50,
+            limit: 10,
+            filter: {
+              interviewType,
+              difficulty,
+              questionType: 'theory',
+            },
           },
         },
-      },
-      // Exclude already-asked questions
-      ...(excludeIds.length > 0
-        ? [{ $match: { questionId: { $nin: excludeIds } } }]
-        : []),
-      { $limit: 5 },
-      {
-        $project: {
-          _id: 0,
-          questionId: 1,
-          topic: 1,
-          difficulty: 1,
-          interviewType: 1,
-          questionText: 1,
-          idealAnswer: 1,
-          keyConcepts: 1,
-          tags: 1,
-          followUpHints: 1,
-          score: { $meta: 'vectorSearchScore' },
+        // Exclude already-asked questions
+        ...(excludeIds.length > 0
+          ? [{ $match: { questionId: { $nin: excludeIds } } }]
+          : []),
+        { $limit: 5 },
+        {
+          $project: {
+            _id: 0,
+            questionId: 1,
+            topic: 1,
+            difficulty: 1,
+            interviewType: 1,
+            questionType: 1,
+            questionText: 1,
+            idealAnswer: 1,
+            keyConcepts: 1,
+            tags: 1,
+            followUpHints: 1,
+            score: { $meta: 'vectorSearchScore' },
+          },
         },
-      },
-    ];
+      ];
 
-    const results = await Question.aggregate(pipeline);
+      const results = await Question.aggregate(pipeline);
 
-    if (results.length > 0) {
-      // Pick the top result (best semantic match)
-      return results[0] as IQuestion;
+      if (results.length > 0) {
+        // Pick the top result (best semantic match)
+        return results[0] as IQuestion;
+      }
+    } catch (err) {
+      console.warn('Vector search failed, falling back to generation:', err);
     }
-  } catch (err) {
-    console.warn('Vector search failed, falling back to random selection:', err);
   }
 
-  // Fallback: random question matching type/difficulty (before index is ready)
-  return Question.findOne({
+  // Fallback: Try to find any unused question
+  const existingQuestion = await Question.findOne({
     interviewType,
     difficulty,
+    questionType,
     ...(excludeIds.length > 0 ? { questionId: { $nin: excludeIds } } : {}),
-  }).then((doc) => doc);
+  }).sort({ createdAt: -1 });
+
+  if (existingQuestion) {
+    return existingQuestion;
+  }
+
+  // Generate a fresh question if none available
+  console.log(`Generating fresh ${questionType} question for ${interviewType}/${difficulty}`);
+  return getOrGenerateQuestion({
+    interviewType,
+    difficulty,
+    questionType,
+    weakAreas,
+  });
 }
